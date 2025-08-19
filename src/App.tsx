@@ -1,4 +1,5 @@
 import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
+import { InboxPage } from "@/Inbox/InboxPage";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -203,10 +204,8 @@ export default function App() {
                 </SidebarTrigger>
                 <h1 className="text-lg font-semibold">Michael Mail</h1>
               </header>
-              <main className="flex-1 overflow-auto p-4 md:p-6">
-                <div className="flex items-center justify-center h-full text-gray-400">
-                  <p>No messages in your inbox</p>
-                </div>
+              <main className="flex-1 overflow-hidden">
+                <InboxPage />
               </main>
             </div>
           </div>
