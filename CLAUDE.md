@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Gmail-style email client clone built with React, TypeScript, Vite, and Convex. It features authentication via Convex Auth with multiple providers (Google, GitHub, Apple, password-based, OTP, anonymous) and includes a chat functionality demonstrator.
+Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, and Convex. Features real Gmail integration via OAuth, dark theme sidebar navigation, and responsive design.
 
 ## Essential Commands
 
@@ -20,43 +20,67 @@ This is a Gmail-style email client clone built with React, TypeScript, Vite, and
 - `npm run test:once` - Run tests once
 - `npm run test:coverage` - Generate test coverage report
 
+### Deployment
+- `npx convex dev --once` - Deploy functions to Convex dev environment
+- `npx convex deploy -y` - Deploy functions to Convex production
+- `vercel --prod` - Deploy frontend to Vercel production
+- `git push origin main` - Triggers automatic Vercel deployment
+
+Production URLs:
+- Frontend: https://michael-mail-2.vercel.app
+- Convex Backend: https://elated-jellyfish-789.convex.cloud
+
 ## Architecture
 
 ### Tech Stack
 - **Frontend**: React 18 with TypeScript, Vite, Tailwind CSS, shadcn/ui components
 - **Backend**: Convex (serverless functions and real-time database)
-- **Auth**: Convex Auth with multiple providers configured in `convex/auth.ts`
-- **Testing**: Vitest with React Testing Library
+- **Auth**: Convex Auth with Google OAuth (Gmail scope enabled)
+- **Email Integration**: Gmail API via OAuth tokens stored in user records
 
-### Key Directories
-- `/src` - React application code
-  - `/auth` - Authentication components and forms for various sign-in methods
-  - `/components` - Reusable UI components (using shadcn/ui)
-  - `/Chat` - Real-time chat functionality
-- `/convex` - Backend Convex functions
-  - `schema.ts` - Database schema definitions
-  - `auth.ts` - Authentication configuration with all providers
-  - `/otp` - OTP verification implementations (Resend, Twilio)
-  - `/passwordReset` - Password reset functionality
+### Key Components
+
+#### Frontend Structure
+- `/src/App.tsx` - Main app with sidebar navigation and routing
+- `/src/Inbox/InboxPage.tsx` - Email inbox with real Gmail integration
+- `/src/auth/SignInFormsShowcase.tsx` - Simplified to Google-only authentication
+- `/src/components/ui/sidebar.tsx` - Dark theme Gmail-style sidebar (10rem width)
+
+#### Backend Functions
+- `/convex/auth.ts` - Google OAuth with Gmail scope and token storage
+- `/convex/gmail.ts` - Gmail API integration (fetchEmails, getCurrentUserWithTokens)
+- `/convex/schema.ts` - Database schema with OAuth token fields
+- `/convex/users.ts` - User queries
 
 ### Database Schema
-- **users**: Extended auth table with email, phone, verification times, and custom fields
-- **messages**: Simple chat messages linked to users
-- Auth tables are included via `@convex-dev/auth/server`
+```typescript
+users: {
+  name, email, image, // Standard fields
+  googleAccessToken, googleRefreshToken, tokenExpiresAt, // Gmail OAuth tokens
+  favoriteColor // Custom field
+}
+messages: { userId, body } // Chat functionality
+```
+
+### Gmail Integration Flow
+1. User signs in with Google → OAuth consent includes Gmail read scope
+2. Access/refresh tokens stored in user record via profile() method
+3. InboxPage calls `api.gmail.fetchEmails` action on mount
+4. Action retrieves user's tokens and fetches emails from Gmail API
+5. Emails transformed to UI format and displayed
+
+### UI Features
+- Dark slate-900 sidebar with collapsible navigation
+- Responsive design with mobile menu
+- User menu in sidebar footer with theme toggle
+- Condensed Gmail-style email rows with read/unread states
+- Loading and error states for email fetching
 
 ### Path Aliases
 - `@/` maps to `./src/` directory (configured in vite.config.ts and tsconfig.json)
 
-### Authentication Providers
-The app supports multiple authentication methods:
-- OAuth: Google, GitHub, Apple
-- Email: Magic links (Resend), OTP codes
-- Phone: SMS OTP via Twilio
-- Password: Multiple variants with email verification and reset
-- Anonymous sign-in
-
 ### Environment Variables
-Required for full functionality:
+Required in `.env.local`:
 - `VITE_CONVEX_URL` - Convex deployment URL
-- `CONVEX_SITE_URL` - Site URL for OAuth callbacks
-- Auth provider secrets (Google, GitHub, Apple, Resend, Twilio)
+- `AUTH_GOOGLE_ID` - Google OAuth client ID  
+- `AUTH_GOOGLE_SECRET` - Google OAuth client secret
