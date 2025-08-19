@@ -17,10 +17,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     GitHub,
     Google({
-      // Add Gmail API scope for reading emails
+      // Add Gmail API scope for reading and modifying emails
       authorization: {
         params: {
-          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.modify",
           access_type: "offline", // Request refresh token
           prompt: "consent", // Force consent to get refresh token
         },
