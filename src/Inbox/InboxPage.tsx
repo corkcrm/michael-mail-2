@@ -126,25 +126,6 @@ export function InboxPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-medium">Inbox</h1>
           <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 px-3 gap-2"
-                    onClick={() => void handleSync()}
-                    disabled={syncing}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">Refresh</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Sync with Gmail to get new emails</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Filter className="h-4 w-4" />
             </Button>
@@ -162,6 +143,25 @@ export function InboxPage() {
       {/* Email Actions Bar */}
       <div className="flex items-center gap-1 border-b dark:border-slate-800 px-4 py-1">
         <Checkbox className="h-4 w-4" />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 px-3"
+                onClick={() => void handleSync()}
+                disabled={syncing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Sync with Gmail to get new emails</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Button variant="ghost" size="sm" className="h-8 px-3">
           <Archive className="h-4 w-4 mr-1.5" />
           Archive
