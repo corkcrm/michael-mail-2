@@ -14,6 +14,10 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     // Custom field.
     favoriteColor: v.optional(v.string()),
+    // OAuth tokens for Gmail API access
+    googleAccessToken: v.optional(v.string()),
+    googleRefreshToken: v.optional(v.string()),
+    tokenExpiresAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),

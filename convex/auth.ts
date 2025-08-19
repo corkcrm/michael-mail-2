@@ -16,7 +16,30 @@ import { DataModel } from "./_generated/dataModel.js";
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     GitHub,
-    Google,
+    Google({
+      // Add Gmail API scope for reading emails
+      authorization: {
+        params: {
+          scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+          access_type: "offline", // Request refresh token
+          prompt: "consent", // Force consent to get refresh token
+        },
+      },
+      // Store the access token in the user profile
+      profile(profile, tokens) {
+        // Store tokens in the user record for later API calls
+        return {
+          id: profile.sub, // Google's unique user ID (required by Convex Auth)
+          email: profile.email,
+          name: profile.name,
+          image: profile.picture,
+          // Store Google access token for Gmail API calls
+          googleAccessToken: tokens.access_token,
+          googleRefreshToken: tokens.refresh_token,
+          tokenExpiresAt: tokens.expires_at,
+        };
+      },
+    }),
     Apple({
       clientSecret: process.env.AUTH_APPLE_SECRET!,
       client: {

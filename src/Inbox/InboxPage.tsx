@@ -5,7 +5,9 @@ import {
   Reply, 
   MoreVertical,
   Search,
-  Filter
+  Filter,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,62 +18,45 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useEffect, useState } from "react";
 
-// Mock email data - will be replaced with real data later
-const mockEmails = [
-  {
-    id: "1",
-    sender: "GitHub",
-    senderEmail: "noreply@github.com",
-    subject: "Security alert: new sign-in to your account",
-    preview: "We noticed a new sign-in to your GitHub account from a new device...",
-    time: "10:30 AM",
-    read: false,
-    starred: false,
-  },
-  {
-    id: "2",
-    sender: "Jane Smith",
-    senderEmail: "jane.smith@example.com",
-    subject: "Re: Project Update",
-    preview: "Thanks for the update! I've reviewed the changes and everything looks good. Let's schedule a call...",
-    time: "9:15 AM",
-    read: true,
-    starred: true,
-  },
-  {
-    id: "3",
-    sender: "Newsletter",
-    senderEmail: "weekly@techdigest.com",
-    subject: "This Week in Tech: AI Updates, New Frameworks, and More",
-    preview: "Your weekly digest of the most important tech news, tutorials, and resources...",
-    time: "Yesterday",
-    read: true,
-    starred: false,
-  },
-  {
-    id: "4",
-    sender: "Alex Johnson",
-    senderEmail: "alex.j@company.com",
-    subject: "Meeting Tomorrow at 2 PM",
-    preview: "Hi, just a reminder about our meeting tomorrow. We'll be discussing the Q4 roadmap...",
-    time: "Yesterday",
-    read: false,
-    starred: false,
-  },
-  {
-    id: "5",
-    sender: "Support Team",
-    senderEmail: "support@service.com",
-    subject: "Your ticket #4521 has been resolved",
-    preview: "Good news! Your support ticket regarding the API integration has been resolved...",
-    time: "2 days ago",
-    read: true,
-    starred: false,
-  },
-];
+interface Email {
+  id: string;
+  sender: string;
+  senderEmail: string;
+  subject: string;
+  preview: string;
+  time: string;
+  read: boolean;
+  starred: boolean;
+}
 
 export function InboxPage() {
+  const fetchEmails = useAction(api.gmail.fetchEmails);
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadEmails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const fetchedEmails = await fetchEmails();
+        setEmails(fetchedEmails || []);
+      } catch (err) {
+        console.error("Error fetching emails:", err);
+        setError(err instanceof Error ? err.message : "Failed to load emails");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEmails();
+  }, [fetchEmails]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Inbox Header */}
@@ -109,13 +94,36 @@ export function InboxPage() {
           Reply
         </Button>
         <div className="ml-auto text-xs text-muted-foreground">
-          1-{mockEmails.length} of {mockEmails.length}
+          {emails.length > 0 ? `1-${emails.length} of ${emails.length}` : ""}
         </div>
       </div>
 
       {/* Email List */}
       <div className="flex-1 overflow-auto">
-        {mockEmails.map((email) => (
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Loading emails...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <p className="text-lg font-medium mb-2">Failed to load emails</p>
+            <p className="text-sm text-muted-foreground mb-4">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()}
+              variant="outline"
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : emails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <p className="text-lg font-medium mb-2">No emails found</p>
+            <p className="text-sm text-muted-foreground">Your inbox is empty</p>
+          </div>
+        ) : (
+          emails.map((email) => (
           <div
             key={email.id}
             className={`group flex items-center gap-3 px-4 py-2 border-b cursor-pointer transition-all ${
@@ -182,7 +190,8 @@ export function InboxPage() {
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
