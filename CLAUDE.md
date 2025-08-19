@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, and Convex. Features real Gmail integration via OAuth, auto-sync on page refresh, and a clean, focused interface.
+Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, and Convex. Features real Gmail integration via OAuth, auto-sync on page refresh, email viewing functionality, and a clean, focused interface.
 
 ## Essential Commands
 
@@ -41,6 +41,16 @@ Production URLs:
 - **Email Integration**: Gmail API via OAuth tokens stored in user records
 - **Testing**: Vitest with edge-runtime environment
 
+### Key Components
+
+#### Frontend Structure
+- `/src/App.tsx` - Main app with sidebar navigation and authenticated layout
+- `/src/Inbox/InboxPage.tsx` - Email inbox list with refresh button, auto-sync on mount
+- `/src/Inbox/EmailViewer.tsx` - Full email viewer with back navigation
+- `/src/Inbox/EmailViewer.css` - Email content styling for proper HTML display
+- `/src/auth/SignInFormsShowcase.tsx` - Google OAuth authentication
+- `/src/components/ui/sidebar.tsx` - Dark theme Gmail-style sidebar navigation
+
 ### Core Data Flow
 
 1. **Authentication Flow**:
@@ -55,8 +65,11 @@ Production URLs:
    - Real-time updates via Convex's reactive `useQuery` hooks
 
 3. **User Interactions**:
+   - Click email row → Opens EmailViewer component to display full email
+   - Back button → Returns to inbox list view
    - Mark as read/unread → Local database update only (one-way sync)
    - Refresh button → Triggers new `syncEmails` call
+   - Email automatically marked as read when opened
    - No write-back to Gmail (intentionally simplified)
 
 ### Key Backend Functions
@@ -71,6 +84,7 @@ Production URLs:
 #### `/convex/emails.ts`
 - `upsertEmail(...)` - Insert or update email in database
 - `getInboxEmails(limit?, cursor?)` - Paginated inbox query
+- `getEmailById(emailId)` - Get single email with attachments for viewing
 - `markAsRead(emailId, isRead)` - Local read status update
 - `updateSyncState(...)` - Track sync progress and pagination
 
@@ -108,8 +122,15 @@ messages: { userId, body } // Chat functionality (unused)
 #### Adding New Email Actions
 When adding new email actions (e.g., archive, delete), follow this pattern:
 1. Add mutation in `/convex/emails.ts` for local state
-2. Add UI handler in `InboxPage.tsx`
+2. Add UI handler in `InboxPage.tsx` or `EmailViewer.tsx`
 3. Consider if Gmail API sync needed (usually not for read-only app)
+
+#### Email Viewing Implementation
+The app uses component state for navigation rather than a routing library:
+- `selectedEmailId` state in `InboxPage.tsx` controls view mode
+- When null → shows inbox list
+- When set → renders `EmailViewer` component
+- Simple back button returns to list by clearing selection
 
 #### Schema Migrations
 When modifying the database schema:
@@ -145,3 +166,16 @@ Required in `.env.local`:
 - **Gmail API errors**: Check browser console and Convex function logs
 - **Sync issues**: Verify `syncState` table for pagination tokens
 - **Type errors after schema changes**: Run `npx convex dev --once` to regenerate types
+- **Email content not visible**: Check EmailViewer.css for proper color overrides
+
+### Recent Features & Changes
+
+- **Email Viewer** (2025-01): Click-to-read functionality with full email display
+  - EmailViewer component shows HTML/plain text content
+  - Custom CSS ensures text visibility in light/dark modes
+  - Attachments listed with file sizes
+  - Auto-marks emails as read when opened
+- **Performance Optimizations**: Parallel email fetching with Promise.all
+- **Removed Features**: Star/starred functionality removed for cleaner UI
+- **Auto-sync**: Emails sync automatically on page refresh
+- **GitHub Integration**: Auto-deployment to Vercel on push to main
