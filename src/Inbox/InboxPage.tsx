@@ -36,10 +36,12 @@ export function InboxPage() {
   // Sync emails on every mount (page refresh)
   useEffect(() => {
     const performInitialSync = async () => {
+      console.log("InboxPage: Starting email sync on mount...");
       try {
         setSyncing(true);
         setSyncError(null);
-        await syncEmails({ fullSync: false });
+        const result = await syncEmails({ fullSync: false });
+        console.log("InboxPage: Sync completed, synced:", result.synced, "emails");
       } catch (err) {
         console.error("Error syncing emails:", err);
         setSyncError(err instanceof Error ? err.message : "Failed to sync emails");
@@ -49,6 +51,7 @@ export function InboxPage() {
     };
 
     // Always sync on mount to get latest Gmail updates
+    console.log("InboxPage: Component mounted, initiating sync...");
     void performInitialSync();
   }, [syncEmails]);
 
