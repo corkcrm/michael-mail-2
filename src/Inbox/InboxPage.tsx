@@ -33,7 +33,7 @@ export function InboxPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Sync emails on every mount (page refresh) - auto-deploy test
+  // Sync emails on every mount (page refresh) - auto-deploy enabled
   useEffect(() => {
     const performInitialSync = async () => {
       console.log("InboxPage: Starting email sync on mount...");
