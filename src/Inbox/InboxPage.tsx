@@ -33,7 +33,7 @@ export function InboxPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Initial sync on mount
+  // Sync emails on every mount (page refresh)
   useEffect(() => {
     const performInitialSync = async () => {
       try {
@@ -48,11 +48,9 @@ export function InboxPage() {
       }
     };
 
-    // Only sync if we don't have emails yet
-    if (emailsQuery?.emails.length === 0) {
-      void performInitialSync();
-    }
-  }, [emailsQuery?.emails.length, syncEmails]);
+    // Always sync on mount to get latest Gmail updates
+    void performInitialSync();
+  }, [syncEmails]);
 
   const handleSync = async () => {
     try {
