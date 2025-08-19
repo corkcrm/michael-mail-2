@@ -1,8 +1,7 @@
-import { mutation, query, action } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
-import { api } from "./_generated/api";
 
 // Mutation to upsert an email (insert or update)
 export const upsertEmail = mutation({
@@ -311,7 +310,7 @@ export const getSyncState = query({
   },
 });
 
-// Mutation to mark email as read with two-way sync
+// Mutation to mark email as read (local only)
 export const markAsRead = mutation({
   args: {
     emailId: v.id("emails"),
@@ -328,54 +327,15 @@ export const markAsRead = mutation({
       throw new ConvexError("Email not found or unauthorized");
     }
 
-    // 1. Update local database immediately for instant UI feedback
+    // Update local database only
     await ctx.db.patch(args.emailId, { isRead: args.isRead });
-
-    // 2. Schedule Gmail API sync (runs in background)
-    // Note: We use scheduler to not block the mutation
-    await ctx.scheduler.runAfter(0, api.emails.syncMarkAsReadToGmail, {
-      userId, // Pass the authenticated user's ID
-      gmailId: email.gmailId,
-      isRead: args.isRead,
-    });
     
     return { success: true };
   },
 });
 
-// Action to sync mark as read status to Gmail
-export const syncMarkAsReadToGmail = action({
-  args: {
-    userId: v.id("users"),
-    gmailId: v.string(),
-    isRead: v.boolean(),
-  },
-  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // Gmail uses the UNREAD label - we remove it to mark as read, add it to mark as unread
-      const result = await ctx.runAction(api.gmail.modifyGmailLabels, {
-        userId: args.userId,
-        gmailId: args.gmailId,
-        addLabelIds: args.isRead ? undefined : ["UNREAD"],
-        removeLabelIds: args.isRead ? ["UNREAD"] : undefined,
-      });
 
-      if (!result.success) {
-        console.error(`Failed to sync read status to Gmail for message ${args.gmailId}:`, result.error);
-      } else {
-        console.log(`Successfully synced read status to Gmail for message ${args.gmailId}`);
-      }
-      
-      return result;
-    } catch (error) {
-      console.error("Error syncing read status to Gmail:", error);
-      // Don't throw - we don't want to crash the app if sync fails
-      return { success: false, error: String(error) };
-    }
-  },
-});
-
-// Mutation to star/unstar email with two-way sync
+// Mutation to star/unstar email (local only)
 export const toggleStar = mutation({
   args: {
     emailId: v.id("emails"),
@@ -392,48 +352,10 @@ export const toggleStar = mutation({
       throw new ConvexError("Email not found or unauthorized");
     }
 
-    // 1. Update local database immediately for instant UI feedback
+    // Update local database only
     await ctx.db.patch(args.emailId, { isStarred: args.isStarred });
-
-    // 2. Schedule Gmail API sync (runs in background)
-    await ctx.scheduler.runAfter(0, api.emails.syncStarToGmail, {
-      userId, // Pass the authenticated user's ID
-      gmailId: email.gmailId,
-      isStarred: args.isStarred,
-    });
     
     return { success: true };
   },
 });
 
-// Action to sync star status to Gmail
-export const syncStarToGmail = action({
-  args: {
-    userId: v.id("users"),
-    gmailId: v.string(),
-    isStarred: v.boolean(),
-  },
-  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // Gmail uses the STARRED label
-      const result = await ctx.runAction(api.gmail.modifyGmailLabels, {
-        userId: args.userId,
-        gmailId: args.gmailId,
-        addLabelIds: args.isStarred ? ["STARRED"] : undefined,
-        removeLabelIds: args.isStarred ? undefined : ["STARRED"],
-      });
-
-      if (!result.success) {
-        console.error(`Failed to sync star status to Gmail for message ${args.gmailId}:`, result.error);
-      } else {
-        console.log(`Successfully synced star status to Gmail for message ${args.gmailId}`);
-      }
-      
-      return result;
-    } catch (error) {
-      console.error("Error syncing star status to Gmail:", error);
-      // Don't throw - we don't want to crash the app if sync fails
-      return { success: false, error: String(error) };
-    }
-  },
-});
