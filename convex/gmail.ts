@@ -325,14 +325,16 @@ export const syncEmails = action({
     const accessToken = user.googleAccessToken;
     
     try {
-      // Get current sync state
-      const syncState = await ctx.runQuery(api.emails.getSyncState);
-      
-      // Determine what to fetch
+      // Always fetch the latest emails first (don't use pageToken for regular syncs)
+      // This ensures we always get the newest emails on refresh
       let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50";
       
-      if (!args.fullSync && syncState?.nextPageToken) {
-        url += `&pageToken=${syncState.nextPageToken}`;
+      // Only use pageToken if explicitly doing a full sync continuation
+      if (args.fullSync) {
+        const syncState = await ctx.runQuery(api.emails.getSyncState);
+        if (syncState?.nextPageToken) {
+          url += `&pageToken=${syncState.nextPageToken}`;
+        }
       }
       
       // Fetch message list
@@ -352,6 +354,8 @@ export const syncEmails = action({
       const listData = await listResponse.json();
       const messages = listData.messages || [];
       const nextPageToken = listData.nextPageToken;
+      
+      console.log(`syncEmails: Fetched ${messages.length} message IDs from Gmail`);
       
       let syncedCount = 0;
       const threads = new Map<string, any>();
