@@ -53,7 +53,7 @@ export default defineSchema({
     
     // Status flags
     isRead: v.boolean(),
-    isStarred: v.boolean(),
+    isStarred: v.optional(v.boolean()), // Deprecated - keeping temporarily for migration
     isImportant: v.boolean(),
     isSpam: v.boolean(),
     isTrash: v.boolean(),

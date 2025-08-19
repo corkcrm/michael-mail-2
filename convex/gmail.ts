@@ -50,7 +50,6 @@ interface EmailData {
   preview: string;
   time: string;
   read: boolean;
-  starred: boolean;
 }
 
 // Query to get the current user with their OAuth tokens
@@ -163,7 +162,6 @@ function transformGmailMessage(message: GmailMessage): EmailData {
     preview: message.snippet || "",
     time: timeString,
     read: !message.labelIds?.includes("UNREAD"),
-    starred: message.labelIds?.includes("STARRED") || false,
   };
 }
 
@@ -425,7 +423,6 @@ export const syncEmails = action({
           bodyHtml: bodyContent.html,
           bodyPlain: bodyContent.plain,
           isRead: !messageData.labelIds?.includes("UNREAD"),
-          isStarred: messageData.labelIds?.includes("STARRED") || false,
           isImportant: messageData.labelIds?.includes("IMPORTANT") || false,
           isSpam: messageData.labelIds?.includes("SPAM") || false,
           isTrash: messageData.labelIds?.includes("TRASH") || false,

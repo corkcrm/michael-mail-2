@@ -22,7 +22,6 @@ export const upsertEmail = mutation({
     bodyHtml: v.optional(v.string()),
     bodyPlain: v.optional(v.string()),
     isRead: v.boolean(),
-    isStarred: v.boolean(),
     isImportant: v.boolean(),
     isSpam: v.boolean(),
     isTrash: v.boolean(),
@@ -334,28 +333,4 @@ export const markAsRead = mutation({
   },
 });
 
-
-// Mutation to star/unstar email (local only)
-export const toggleStar = mutation({
-  args: {
-    emailId: v.id("emails"),
-    isStarred: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) {
-      throw new ConvexError("Not authenticated");
-    }
-
-    const email = await ctx.db.get(args.emailId);
-    if (!email || email.userId !== userId) {
-      throw new ConvexError("Email not found or unauthorized");
-    }
-
-    // Update local database only
-    await ctx.db.patch(args.emailId, { isStarred: args.isStarred });
-    
-    return { success: true };
-  },
-});
 

@@ -32,7 +32,6 @@ import {
   Send, 
   File, 
   Trash2, 
-  Star, 
   Archive,
   Mail,
   LogOut,
@@ -45,7 +44,6 @@ import {
 // Gmail-style navigation items
 const mailNavItems = [
   { title: "Inbox", icon: Inbox, count: 12 },
-  { title: "Starred", icon: Star },
   { title: "Sent", icon: Send },
   { title: "Drafts", icon: File },
   { title: "Archive", icon: Archive },

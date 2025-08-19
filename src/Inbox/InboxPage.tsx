@@ -1,5 +1,4 @@
 import { 
-  Star, 
   Archive, 
   Trash2, 
   Reply, 
@@ -34,7 +33,6 @@ export function InboxPage() {
   const syncEmails = useAction(api.gmail.syncEmails);
   const emailsQuery = useQuery(api.emails.getInboxEmails, { limit: 50 });
   const markAsRead = useMutation(api.emails.markAsRead);
-  const toggleStar = useMutation(api.emails.toggleStar);
   
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -68,14 +66,6 @@ export function InboxPage() {
       setSyncError(err instanceof Error ? err.message : "Failed to sync emails");
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const handleToggleStar = async (emailId: Id<"emails">, currentStarred: boolean) => {
-    try {
-      await toggleStar({ emailId, isStarred: !currentStarred });
-    } catch (err) {
-      console.error("Error toggling star:", err);
     }
   };
 
@@ -222,17 +212,6 @@ export function InboxPage() {
             onClick={() => void handleMarkAsRead(email._id, true)}
           >
             <Checkbox className="h-4 w-4" />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 p-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleToggleStar(email._id, email.isStarred);
-              }}
-            >
-              <Star className={`h-4 w-4 ${email.isStarred ? "fill-yellow-400 text-yellow-400" : "text-gray-400 dark:text-gray-500"}`} />
-            </Button>
             
             <div className="flex items-center flex-1 min-w-0 gap-3">
               {/* Sender */}
@@ -275,12 +254,6 @@ export function InboxPage() {
                       onClick={() => void handleMarkAsRead(email._id, !email.isRead)}
                     >
                       {email.isRead ? 'Mark as unread' : 'Mark as read'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="dark:text-slate-200 dark:hover:bg-slate-700"
-                      onClick={() => void handleToggleStar(email._id, email.isStarred)}
-                    >
-                      {email.isStarred ? 'Unstar' : 'Star'}
                     </DropdownMenuItem>
                     <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Archive</DropdownMenuItem>
                     <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Delete</DropdownMenuItem>
