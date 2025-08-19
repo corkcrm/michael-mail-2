@@ -12,18 +12,21 @@ Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, an
 - `npm run dev` - Runs both frontend (Vite on port 3000) and backend (Convex) in parallel
 - `npm run dev:frontend` - Frontend only (Vite dev server)
 - `npm run dev:backend` - Backend only (Convex dev)
+- `npx convex dev --once` - Deploy functions to Convex dev environment once (useful after schema changes)
+- `npx convex dashboard` - Open Convex dashboard in browser
 
 ### Build & Testing
 - `npm run build` - TypeScript check and production build
 - `npm run lint` - Run TypeScript and ESLint checks (includes both main and convex TSConfigs)
-- `npm test` - Run tests in watch mode (Vitest)
+- `npm test` - Run tests in watch mode (Vitest with edge-runtime environment)
 - `npm run test:once` - Run tests once
+- `npm run test:debug` - Debug tests with inspector
 - `npm run test:coverage` - Generate test coverage report
 
 ### Deployment
-- `npx convex dev --once` - Deploy functions to Convex dev environment
-- `npx convex deploy -y` - Deploy functions to Convex production
 - `git push origin main` - Triggers automatic Vercel deployment (GitHub integration enabled)
+- `npx convex deploy -y` - Deploy functions to Convex production (if manual deployment needed)
+- `vercel --prod` - Deploy frontend to Vercel production (if manual deployment needed)
 
 Production URLs:
 - Frontend: https://michael-mail-2.vercel.app (auto-deploys from main branch)
@@ -36,23 +39,40 @@ Production URLs:
 - **Backend**: Convex (serverless functions and real-time database)
 - **Auth**: Convex Auth with Google OAuth (Gmail scope enabled)
 - **Email Integration**: Gmail API via OAuth tokens stored in user records
+- **Testing**: Vitest with edge-runtime environment
 
-### Key Components
+### Core Data Flow
 
-#### Frontend Structure
-- `/src/App.tsx` - Main app with sidebar navigation (Inbox, Sent, Drafts, Archive, Trash)
-- `/src/Inbox/InboxPage.tsx` - Email inbox with refresh button, auto-sync on mount
-- `/src/auth/SignInFormsShowcase.tsx` - Google-only authentication
-- `/src/components/ui/sidebar.tsx` - Dark theme Gmail-style sidebar
+1. **Authentication Flow**:
+   - User signs in via Google OAuth → `/convex/auth.ts` 
+   - OAuth tokens stored in users table with Gmail readonly scope
+   - Tokens include: `googleAccessToken`, `googleRefreshToken`, `tokenExpiresAt`
 
-#### Backend Functions
-- `/convex/auth.ts` - Google OAuth with Gmail readonly scope
-- `/convex/gmail.ts` - Gmail API integration with parallel email fetching
-  - `fetchEmails` - Display-only, returns formatted email data
-  - `syncEmails` - Syncs Gmail to database with parallel fetching (3-5x faster)
-- `/convex/emails.ts` - Email mutations (markAsRead, upsertEmail)
-- `/convex/schema.ts` - Database schema with emails, threads, attachments
-- `/convex/users.ts` - User queries
+2. **Email Sync Flow**:
+   - Page load → `InboxPage` mounts → calls `syncEmails` action
+   - `syncEmails` fetches 50 latest emails from Gmail API in parallel
+   - Emails upserted to database, maintaining Gmail IDs for deduplication
+   - Real-time updates via Convex's reactive `useQuery` hooks
+
+3. **User Interactions**:
+   - Mark as read/unread → Local database update only (one-way sync)
+   - Refresh button → Triggers new `syncEmails` call
+   - No write-back to Gmail (intentionally simplified)
+
+### Key Backend Functions
+
+#### `/convex/gmail.ts`
+- `syncEmails(fullSync?: boolean)` - Main sync action, fetches and stores emails
+  - Uses `Promise.all` for parallel fetching (3-5x performance improvement)
+  - Processes emails, threads, and attachments
+  - Returns `{ synced: number, hasMore?: boolean, error?: string }`
+- `getCurrentUserWithTokens()` - Query to get user with OAuth tokens
+
+#### `/convex/emails.ts`
+- `upsertEmail(...)` - Insert or update email in database
+- `getInboxEmails(limit?, cursor?)` - Paginated inbox query
+- `markAsRead(emailId, isRead)` - Local read status update
+- `updateSyncState(...)` - Track sync progress and pagination
 
 ### Database Schema
 ```typescript
@@ -83,35 +103,35 @@ syncState: {
 messages: { userId, body } // Chat functionality (unused)
 ```
 
-### Gmail Integration Flow
-1. User signs in with Google → OAuth consent includes Gmail readonly scope
-2. Access/refresh tokens stored in user record via profile() method
-3. InboxPage automatically syncs on every mount (page refresh)
-4. Sync process:
-   - Fetches latest 50 emails from Gmail API (parallel fetching)
-   - Upserts emails to database (updates existing, adds new)
-   - Updates thread information and attachments
-5. Real-time updates via Convex's useQuery hook
-6. Manual refresh available via button in actions toolbar
+### Common Development Patterns
 
-### UI Features
-- Clean, focused interface without star/starred functionality
-- Dark theme sidebar with Gmail-style navigation
-- Refresh button in actions toolbar for manual sync
-- Auto-sync on page refresh for latest emails
-- Email rows with read/unread visual states
-- Dropdown menu for mark as read/unread, archive, delete
-- Loading states and error handling
-- Responsive design with mobile support
+#### Adding New Email Actions
+When adding new email actions (e.g., archive, delete), follow this pattern:
+1. Add mutation in `/convex/emails.ts` for local state
+2. Add UI handler in `InboxPage.tsx`
+3. Consider if Gmail API sync needed (usually not for read-only app)
+
+#### Schema Migrations
+When modifying the database schema:
+1. Make fields optional first: `v.optional(v.type())`
+2. Deploy with `npx convex dev --once`
+3. Run migration if needed
+4. Make field required after data migration
+
+#### Error Handling
+- Gmail API 401 errors → User needs to re-authenticate
+- Network errors → Show retry button with error message
+- Use `ConvexError` for user-facing errors in actions/mutations
+
+### Performance Considerations
+
+- **Parallel fetching**: Always use `Promise.all` for multiple API calls
+- **Database indexes**: Schema includes indexes on `gmailId`, `userId`, `userDate`
+- **Pagination**: Use cursor-based pagination for large datasets
+- **Real-time updates**: Convex handles subscriptions automatically via `useQuery`
 
 ### Path Aliases
 - `@/` maps to `./src/` directory (configured in vite.config.ts and tsconfig.json)
-
-### Performance Optimizations
-- **Parallel email fetching**: All 50 emails fetched simultaneously (3-5x faster)
-- **One-way sync**: Gmail → App only (no complex bidirectional sync)
-- **Efficient database operations**: Batch processing where possible
-- **Auto-deployment**: GitHub integration for instant production updates
 
 ### Environment Variables
 Required in `.env.local`:
@@ -119,10 +139,9 @@ Required in `.env.local`:
 - `AUTH_GOOGLE_ID` - Google OAuth client ID  
 - `AUTH_GOOGLE_SECRET` - Google OAuth client secret
 
-### Recent Changes (2024)
-- Removed star/starred functionality for cleaner UI
-- Implemented auto-sync on page refresh
-- Added refresh button to actions toolbar
-- Optimized sync with parallel fetching
-- Enabled GitHub auto-deployment for Vercel
-- Simplified to one-way sync (Gmail → App)
+### Debugging Tips
+
+- **Check OAuth tokens**: Use Convex dashboard to inspect user records
+- **Gmail API errors**: Check browser console and Convex function logs
+- **Sync issues**: Verify `syncState` table for pagination tokens
+- **Type errors after schema changes**: Run `npx convex dev --once` to regenerate types

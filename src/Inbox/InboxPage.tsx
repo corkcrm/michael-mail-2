@@ -28,6 +28,7 @@ import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
+import { EmailViewer } from "./EmailViewer";
 
 export function InboxPage() {
   const syncEmails = useAction(api.gmail.syncEmails);
@@ -36,6 +37,7 @@ export function InboxPage() {
   
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
 
   // Sync emails on every mount (page refresh)
   useEffect(() => {
@@ -108,6 +110,16 @@ export function InboxPage() {
 
   const emails = emailsQuery?.emails || [];
   const loading = emailsQuery === undefined;
+
+  // If an email is selected, show the email viewer
+  if (selectedEmailId) {
+    return (
+      <EmailViewer 
+        emailId={selectedEmailId} 
+        onBack={() => setSelectedEmailId(null)} 
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-950">
@@ -209,7 +221,7 @@ export function InboxPage() {
                 ? "bg-blue-50 dark:bg-slate-800/50 hover:bg-blue-100 dark:hover:bg-slate-700 font-medium" 
                 : "bg-white dark:bg-slate-950 hover:bg-gray-50 dark:hover:bg-slate-800/30"
             }`}
-            onClick={() => void handleMarkAsRead(email._id, true)}
+            onClick={() => setSelectedEmailId(email._id)}
           >
             <Checkbox className="h-4 w-4" />
             
