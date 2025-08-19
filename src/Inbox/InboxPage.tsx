@@ -58,9 +58,9 @@ export function InboxPage() {
   }, [fetchEmails]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-950">
       {/* Inbox Header */}
-      <div className="border-b px-4 py-2">
+      <div className="border-b dark:border-slate-800 px-4 py-2">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-medium">Inbox</h1>
           <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function InboxPage() {
       </div>
 
       {/* Email Actions Bar */}
-      <div className="flex items-center gap-1 border-b px-4 py-1">
+      <div className="flex items-center gap-1 border-b dark:border-slate-800 px-4 py-1">
         <Checkbox className="h-4 w-4" />
         <Button variant="ghost" size="sm" className="h-8 px-3">
           <Archive className="h-4 w-4 mr-1.5" />
@@ -126,10 +126,10 @@ export function InboxPage() {
           emails.map((email) => (
           <div
             key={email.id}
-            className={`group flex items-center gap-3 px-4 py-2 border-b cursor-pointer transition-all ${
+            className={`group flex items-center gap-3 px-4 py-2 border-b dark:border-slate-800 cursor-pointer transition-all ${
               !email.read 
-                ? "bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 font-medium" 
-                : "hover:bg-gray-50 dark:hover:bg-slate-800"
+                ? "bg-blue-50 dark:bg-slate-800/50 hover:bg-blue-100 dark:hover:bg-slate-700 font-medium" 
+                : "bg-white dark:bg-slate-950 hover:bg-gray-50 dark:hover:bg-slate-800/30"
             }`}
           >
             <Checkbox className="h-4 w-4" />
@@ -142,7 +142,7 @@ export function InboxPage() {
                 // Handle star toggle
               }}
             >
-              <Star className={`h-4 w-4 ${email.starred ? "fill-yellow-400 text-yellow-400" : "text-gray-400"}`} />
+              <Star className={`h-4 w-4 ${email.starred ? "fill-yellow-400 text-yellow-400" : "text-gray-400 dark:text-gray-500"}`} />
             </Button>
             
             <div className="flex items-center flex-1 min-w-0 gap-3">
@@ -177,14 +177,14 @@ export function InboxPage() {
                       className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Mark as read</DropdownMenuItem>
-                    <DropdownMenuItem>Star</DropdownMenuItem>
-                    <DropdownMenuItem>Archive</DropdownMenuItem>
-                    <DropdownMenuItem>Delete</DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="dark:bg-slate-800 dark:border-slate-700">
+                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Mark as read</DropdownMenuItem>
+                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Star</DropdownMenuItem>
+                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Archive</DropdownMenuItem>
+                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Delete</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
