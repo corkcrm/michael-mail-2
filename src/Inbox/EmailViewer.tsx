@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import "./EmailViewer.css";
 
 interface EmailViewerProps {
   emailId: Id<"emails">;
@@ -154,7 +155,7 @@ export function EmailViewer({ emailId, onBack }: EmailViewerProps) {
           )}
 
           {/* Email Body */}
-          <div className="prose prose-gray dark:prose-invert max-w-none">
+          <div>
             {email.bodyHtml ? (
               <div
                 className="email-content"

@@ -1,0 +1,94 @@
+/* Email content styling */
+.email-content {
+  color: rgb(17 24 39); /* gray-900 */
+  line-height: 1.75;
+}
+
+/* Dark mode */
+.dark .email-content {
+  color: rgb(243 244 246); /* gray-100 */
+}
+
+/* Force all nested elements to inherit text color */
+.email-content * {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
+/* Style links */
+.email-content a {
+  color: rgb(59 130 246) !important; /* blue-500 */
+  text-decoration: underline;
+}
+
+.dark .email-content a {
+  color: rgb(96 165 250) !important; /* blue-400 */
+}
+
+/* Style blockquotes */
+.email-content blockquote {
+  border-left: 4px solid rgb(229 231 235); /* gray-200 */
+  padding-left: 1rem;
+  margin-left: 0;
+}
+
+.dark .email-content blockquote {
+  border-left-color: rgb(55 65 81); /* gray-700 */
+}
+
+/* Style tables */
+.email-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.email-content td,
+.email-content th {
+  border: 1px solid rgb(229 231 235); /* gray-200 */
+  padding: 0.5rem;
+}
+
+.dark .email-content td,
+.dark .email-content th {
+  border-color: rgb(55 65 81); /* gray-700 */
+}
+
+/* Style images */
+.email-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem 0;
+}
+
+/* Style hr */
+.email-content hr {
+  border: none;
+  border-top: 1px solid rgb(229 231 235); /* gray-200 */
+  margin: 1.5rem 0;
+}
+
+.dark .email-content hr {
+  border-top-color: rgb(55 65 81); /* gray-700 */
+}
+
+/* Style code blocks */
+.email-content pre,
+.email-content code {
+  background-color: rgb(243 244 246) !important; /* gray-100 */
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+}
+
+.dark .email-content pre,
+.dark .email-content code {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+.email-content pre {
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
