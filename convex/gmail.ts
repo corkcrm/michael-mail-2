@@ -356,28 +356,42 @@ export const syncEmails = action({
       let syncedCount = 0;
       const threads = new Map<string, any>();
       
-      // Fetch and store each message
-      for (const msg of messages) {
-        const detailResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
+      // Fetch all messages in parallel for better performance
+      const messagePromises = messages.map(async (msg: { id: string }) => {
+        try {
+          const detailResponse = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (!detailResponse.ok) {
+            console.error(`Failed to fetch message ${msg.id}`);
+            return null;
           }
-        );
 
-        if (!detailResponse.ok) {
-          console.error(`Failed to fetch message ${msg.id}`);
-          continue;
+          const messageData: GmailMessage = await detailResponse.json();
+          return messageData;
+        } catch (error) {
+          console.error(`Error fetching message ${msg.id}:`, error);
+          return null;
         }
+      });
 
-        const messageData: GmailMessage = await detailResponse.json();
+      // Wait for all fetches to complete
+      const messageResults = await Promise.all(messagePromises);
+      
+      // Process each successfully fetched message
+      for (const messageData of messageResults) {
+        if (!messageData) continue; // Skip failed fetches
         
         // Extract headers
         const headers = messageData.payload?.headers || [];
         const getHeader = (name: string) => 
-          headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+          headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
         
         // Extract sender info
         const fromHeader = getHeader("From");
@@ -418,14 +432,16 @@ export const syncEmails = action({
           isDraft: messageData.labelIds?.includes("DRAFT") || false,
         });
         
-        // Extract and store attachments
+        // Extract and store attachments (batch these later for better performance)
         const attachments = extractAttachments(messageData);
-        for (const attachment of attachments) {
-          await ctx.runMutation(api.emails.addAttachment, {
+        // Store attachments in parallel instead of sequentially
+        const attachmentPromises = attachments.map(attachment => 
+          ctx.runMutation(api.emails.addAttachment, {
             emailId,
             ...attachment,
-          });
-        }
+          })
+        );
+        await Promise.all(attachmentPromises);
         
         // Track thread info for aggregation
         if (!threads.has(messageData.threadId)) {
