@@ -19,6 +19,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAction, useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useState } from "react";
@@ -33,15 +39,13 @@ export function InboxPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Sync emails on every mount (page refresh) - auto-deploy enabled
+  // Sync emails on every mount (page refresh)
   useEffect(() => {
     const performInitialSync = async () => {
-      console.log("InboxPage: Starting email sync on mount...");
       try {
         setSyncing(true);
         setSyncError(null);
-        const result = await syncEmails({ fullSync: false });
-        console.log("InboxPage: Sync completed, synced:", result.synced, "emails");
+        await syncEmails({ fullSync: false });
       } catch (err) {
         console.error("Error syncing emails:", err);
         setSyncError(err instanceof Error ? err.message : "Failed to sync emails");
@@ -51,7 +55,6 @@ export function InboxPage() {
     };
 
     // Always sync on mount to get latest Gmail updates
-    console.log("InboxPage: Component mounted, initiating sync...");
     void performInitialSync();
   }, [syncEmails]);
 
@@ -59,8 +62,7 @@ export function InboxPage() {
     try {
       setSyncing(true);
       setSyncError(null);
-      const result = await syncEmails({ fullSync: false });
-      console.log(`Synced ${result.synced} emails`);
+      await syncEmails({ fullSync: false });
     } catch (err) {
       console.error("Error syncing emails:", err);
       setSyncError(err instanceof Error ? err.message : "Failed to sync emails");
@@ -124,15 +126,25 @@ export function InboxPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-medium">Inbox</h1>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={() => void handleSync()}
-              disabled={syncing}
-            >
-              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 px-3 gap-2"
+                    onClick={() => void handleSync()}
+                    disabled={syncing}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Sync with Gmail to get new emails</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Filter className="h-4 w-4" />
             </Button>

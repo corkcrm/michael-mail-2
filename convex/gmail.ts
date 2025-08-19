@@ -309,11 +309,9 @@ export const syncEmails = action({
     fullSync: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<{ synced: number; hasMore?: boolean; error?: string }> => {
-    console.log("syncEmails: Action called with args:", args);
     const user = await ctx.runQuery(api.gmail.getCurrentUserWithTokens);
     
     if (!user) {
-      console.log("syncEmails: No authenticated user found");
       throw new ConvexError("Not authenticated. Please sign in again.");
     }
 
@@ -354,8 +352,6 @@ export const syncEmails = action({
       const listData = await listResponse.json();
       const messages = listData.messages || [];
       const nextPageToken = listData.nextPageToken;
-      
-      console.log(`syncEmails: Fetched ${messages.length} message IDs from Gmail`);
       
       let syncedCount = 0;
       const threads = new Map<string, any>();
@@ -475,7 +471,6 @@ export const syncEmails = action({
         });
       }
       
-      console.log(`syncEmails: Successfully synced ${syncedCount} emails`);
       return { synced: syncedCount, hasMore: !!nextPageToken };
     } catch (error) {
       console.error("Error syncing Gmail messages:", error);
