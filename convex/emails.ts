@@ -159,7 +159,106 @@ export const updateSyncState = mutation({
   },
 });
 
-// Query to get inbox emails with pagination
+// Unified query to get emails with filtering
+export const getEmails = query({
+  args: {
+    filter: v.union(
+      v.literal("inbox"),
+      v.literal("sent"),
+      v.literal("drafts"),
+      v.literal("archive"),
+      v.literal("trash"),
+      v.literal("all")
+    ),
+    page: v.optional(v.number()),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return { 
+        emails: [], 
+        totalCount: 0,
+        page: 1,
+        pageSize: 50,
+        hasNext: false,
+        hasPrev: false
+      };
+    }
+
+    // Get user's email for sent filter
+    const user = await ctx.db.get(userId);
+    const userEmail = user?.email?.toLowerCase();
+
+    const page = args.page || 1;
+    const pageSize = args.pageSize || 50;
+    const offset = (page - 1) * pageSize;
+
+    // Build filter based on view type
+    let filterFn: (email: any) => boolean;
+    switch (args.filter) {
+      case "inbox":
+        filterFn = (email) => !email.isSpam && !email.isTrash && !email.isDraft;
+        break;
+      case "sent":
+        filterFn = (email) => email.fromEmail?.toLowerCase() === userEmail && !email.isDraft;
+        break;
+      case "drafts":
+        filterFn = (email) => email.isDraft === true;
+        break;
+      case "archive":
+        // For now, archived emails are those not in inbox/spam/trash/drafts
+        // TODO: Add isArchived field to schema
+        filterFn = (email) => !email.isSpam && !email.isTrash && !email.isDraft && email.isImportant === false;
+        break;
+      case "trash":
+        filterFn = (email) => email.isTrash === true;
+        break;
+      case "all":
+        filterFn = () => true;
+        break;
+      default:
+        filterFn = (email) => !email.isSpam && !email.isTrash && !email.isDraft;
+    }
+
+    // Get all emails for counting
+    const allEmails = await ctx.db
+      .query("emails")
+      .withIndex("userDate", (q) => q.eq("userId", userId))
+      .collect();
+    
+    const filteredEmails = allEmails.filter(filterFn);
+    const totalCount = filteredEmails.length;
+
+    // Get paginated emails
+    const emails = await ctx.db
+      .query("emails")
+      .withIndex("userDate", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+
+    // Apply filter and pagination
+    const filteredAndSorted = emails.filter(filterFn);
+    const paginatedEmails = filteredAndSorted.slice(offset, offset + pageSize);
+    
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    return {
+      emails: paginatedEmails,
+      totalCount,
+      page,
+      pageSize,
+      totalPages,
+      hasNext,
+      hasPrev,
+    };
+  },
+});
+
+// Query to get inbox emails with pagination (kept for backward compatibility)
+// This duplicates some logic from getEmails but avoids circular dependencies
 export const getInboxEmails = query({
   args: {
     page: v.optional(v.number()),
@@ -182,35 +281,26 @@ export const getInboxEmails = query({
     const pageSize = args.pageSize || 50;
     const offset = (page - 1) * pageSize;
 
-    // First, get total count of inbox emails (not spam or trash)
+    // Get all emails for counting
     const allEmails = await ctx.db
       .query("emails")
       .withIndex("userDate", (q) => q.eq("userId", userId))
-      .filter((q) => 
-        q.and(
-          q.eq(q.field("isSpam"), false),
-          q.eq(q.field("isTrash"), false)
-        )
-      )
       .collect();
     
-    const totalCount = allEmails.length;
+    // Inbox filter: not spam, trash, or draft
+    const filteredEmails = allEmails.filter(email => !email.isSpam && !email.isTrash && !email.isDraft);
+    const totalCount = filteredEmails.length;
 
     // Get paginated emails
     const emails = await ctx.db
       .query("emails")
       .withIndex("userDate", (q) => q.eq("userId", userId))
       .order("desc")
-      .filter((q) => 
-        q.and(
-          q.eq(q.field("isSpam"), false),
-          q.eq(q.field("isTrash"), false)
-        )
-      )
       .collect();
 
-    // Apply pagination in memory (Convex doesn't have skip/offset)
-    const paginatedEmails = emails.slice(offset, offset + pageSize);
+    // Apply filter and pagination
+    const filteredAndSorted = emails.filter(email => !email.isSpam && !email.isTrash && !email.isDraft);
+    const paginatedEmails = filteredAndSorted.slice(offset, offset + pageSize);
     
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;

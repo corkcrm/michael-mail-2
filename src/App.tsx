@@ -1,5 +1,9 @@
 import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
-import { InboxPage } from "@/Inbox/InboxPage";
+import { InboxView } from "@/views/InboxView";
+import { SentView } from "@/views/SentView";
+import { DraftsView } from "@/views/DraftsView";
+import { ArchiveView } from "@/views/ArchiveView";
+import { TrashView } from "@/views/TrashView";
 import { ComposeDialog } from "@/components/ComposeDialog";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -54,7 +58,19 @@ const mailNavItems = [
   { title: "Trash", icon: Trash2 },
 ];
 
-function GmailSidebarContent({ user, onInboxClick, onComposeClick }: { user: any; onInboxClick: () => void; onComposeClick: () => void }) {
+type ViewType = "inbox" | "sent" | "drafts" | "archive" | "trash";
+
+function GmailSidebarContent({ 
+  user, 
+  currentView, 
+  onViewChange, 
+  onComposeClick 
+}: { 
+  user: any; 
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void; 
+  onComposeClick: () => void 
+}) {
   const { signOut } = useAuthActions();
   const { state, toggleSidebar } = useSidebar();
   
@@ -111,8 +127,10 @@ function GmailSidebarContent({ user, onInboxClick, onComposeClick }: { user: any
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     tooltip={item.title}
-                    className="hover:bg-slate-700 text-slate-300 hover:text-slate-100 w-full"
-                    onClick={item.title === "Inbox" ? onInboxClick : undefined}
+                    className={`hover:bg-slate-700 text-slate-300 hover:text-slate-100 w-full ${
+                      currentView === item.title.toLowerCase() ? "bg-slate-700/50 text-slate-100" : ""
+                    }`}
+                    onClick={() => onViewChange(item.title.toLowerCase() as ViewType)}
                   >
                     <item.icon className="text-slate-400 shrink-0" />
                     <span className="truncate">{item.title}</span>
@@ -187,10 +205,25 @@ function GmailSidebarContent({ user, onInboxClick, onComposeClick }: { user: any
   );
 }
 
-function GmailSidebar({ user, onInboxClick, onComposeClick }: { user: any; onInboxClick: () => void; onComposeClick: () => void }) {
+function GmailSidebar({ 
+  user, 
+  currentView, 
+  onViewChange, 
+  onComposeClick 
+}: { 
+  user: any; 
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void; 
+  onComposeClick: () => void 
+}) {
   return (
     <Sidebar collapsible="icon" className="bg-slate-900 border-r border-slate-700">
-      <GmailSidebarContent user={user} onInboxClick={onInboxClick} onComposeClick={onComposeClick} />
+      <GmailSidebarContent 
+        user={user} 
+        currentView={currentView}
+        onViewChange={onViewChange} 
+        onComposeClick={onComposeClick} 
+      />
     </Sidebar>
   );
 }
@@ -199,8 +232,10 @@ export default function App() {
   const user = useQuery(api.users.viewer);
   const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<ViewType>("inbox");
   
-  const handleInboxClick = () => {
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
     setSelectedEmailId(null);
   };
   
@@ -217,7 +252,12 @@ export default function App() {
       <Authenticated>
         <SidebarProvider>
           <div className="flex h-screen w-full overflow-hidden">
-            <GmailSidebar user={user} onInboxClick={handleInboxClick} onComposeClick={handleComposeClick} />
+            <GmailSidebar 
+              user={user} 
+              currentView={currentView}
+              onViewChange={handleViewChange} 
+              onComposeClick={handleComposeClick} 
+            />
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
               <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
                 <SidebarTrigger className="md:hidden">
@@ -227,10 +267,36 @@ export default function App() {
                 <h1 className="text-lg font-semibold">Michael Mail</h1>
               </header>
               <main className="flex-1 overflow-hidden">
-                <InboxPage 
-                  selectedEmailId={selectedEmailId}
-                  setSelectedEmailId={setSelectedEmailId}
-                />
+                {currentView === "inbox" && (
+                  <InboxView 
+                    selectedEmailId={selectedEmailId}
+                    setSelectedEmailId={setSelectedEmailId}
+                  />
+                )}
+                {currentView === "sent" && (
+                  <SentView 
+                    selectedEmailId={selectedEmailId}
+                    setSelectedEmailId={setSelectedEmailId}
+                  />
+                )}
+                {currentView === "drafts" && (
+                  <DraftsView 
+                    selectedEmailId={selectedEmailId}
+                    setSelectedEmailId={setSelectedEmailId}
+                  />
+                )}
+                {currentView === "archive" && (
+                  <ArchiveView 
+                    selectedEmailId={selectedEmailId}
+                    setSelectedEmailId={setSelectedEmailId}
+                  />
+                )}
+                {currentView === "trash" && (
+                  <TrashView 
+                    selectedEmailId={selectedEmailId}
+                    setSelectedEmailId={setSelectedEmailId}
+                  />
+                )}
               </main>
             </div>
           </div>
