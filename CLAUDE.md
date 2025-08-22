@@ -26,7 +26,9 @@ Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, an
 
 ### Deployment
 - `git push origin main` - Triggers automatic Vercel deployment (GitHub integration enabled)
-- `npx convex deploy -y` - Deploy functions to Convex production (if manual deployment needed)
+- `npx convex deploy -y` - **IMPORTANT**: Deploy Convex backend functions to production after pushing
+  - Frontend auto-deploys via GitHub integration, but Convex functions need manual deployment
+  - Always deploy Convex after schema or function changes to avoid production errors
 - `vercel --prod` - Deploy frontend to Vercel production (if manual deployment needed)
 
 Production URLs:
@@ -183,6 +185,9 @@ Required in `.env.local`:
 - **Sync issues**: Verify `syncState` table for pagination tokens
 - **Type errors after schema changes**: Run `npx convex dev --once` to regenerate types
 - **Email content not visible**: Check EmailViewer.css for proper color overrides
+- **Production errors after deployment**: Ensure Convex functions are deployed with `npx convex deploy -y`
+  - Common error: "Server Error" in production after pushing changes
+  - Solution: Frontend and backend must be deployed together
 
 ### Recent Features & Changes
 
