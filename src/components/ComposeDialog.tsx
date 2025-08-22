@@ -34,9 +34,23 @@ interface ComposeDialogProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string;
+  initialTo?: string;
+  initialCc?: string;
+  initialSubject?: string;
+  initialBody?: string;
+  replyMode?: "reply" | "replyAll" | "forward";
 }
 
-export function ComposeDialog({ isOpen, onClose, userEmail }: ComposeDialogProps) {
+export function ComposeDialog({ 
+  isOpen, 
+  onClose, 
+  userEmail,
+  initialTo = "",
+  initialCc = "",
+  initialSubject = "",
+  initialBody = "",
+  replyMode: _replyMode
+}: ComposeDialogProps) {
   const sendEmail = useAction(api.gmail.sendEmail);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -54,19 +68,19 @@ export function ComposeDialog({ isOpen, onClose, userEmail }: ComposeDialogProps
   // Reset form when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setTo("");
-      setCc("");
+      setTo(initialTo);
+      setCc(initialCc);
       setBcc("");
-      setSubject("");
-      setBody("");
-      setShowCc(false);
+      setSubject(initialSubject);
+      setBody(initialBody);
+      setShowCc(!!initialCc);
       setShowBcc(false);
       setIsMinimized(false);
       setIsMaximized(false);
       setSendStatus("idle");
       setErrorMessage("");
     }
-  }, [isOpen]);
+  }, [isOpen, initialTo, initialCc, initialSubject, initialBody]);
 
   const handleSend = async () => {
     // Validate required fields

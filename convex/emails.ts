@@ -241,12 +241,28 @@ export const getEmails = query({
     const filteredAndSorted = emails.filter(filterFn);
     const paginatedEmails = filteredAndSorted.slice(offset, offset + pageSize);
     
+    // Get thread info for paginated emails
+    const emailsWithThreadInfo = await Promise.all(
+      paginatedEmails.map(async (email) => {
+        const thread = await ctx.db
+          .query("threads")
+          .withIndex("gmailThreadId", (q) => q.eq("gmailThreadId", email.gmailThreadId))
+          .filter((q) => q.eq(q.field("userId"), userId))
+          .first();
+        
+        return {
+          ...email,
+          threadMessageCount: thread?.messageCount || 1,
+        };
+      })
+    );
+    
     const totalPages = Math.ceil(totalCount / pageSize);
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
 
     return {
-      emails: paginatedEmails,
+      emails: emailsWithThreadInfo,
       totalCount,
       page,
       pageSize,
@@ -340,9 +356,20 @@ export const getEmailById = query({
       .withIndex("emailId", (q) => q.eq("emailId", args.emailId))
       .collect();
 
+    // Get thread info
+    const thread = await ctx.db
+      .query("threads")
+      .withIndex("gmailThreadId", (q) => q.eq("gmailThreadId", email.gmailThreadId))
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .first();
+
     return {
       ...email,
       attachments,
+      threadInfo: thread ? {
+        messageCount: thread.messageCount,
+        participantEmails: thread.participantEmails,
+      } : null,
     };
   },
 });
@@ -358,12 +385,28 @@ export const getEmailsByThread = query({
       return [];
     }
 
-    return await ctx.db
+    const emails = await ctx.db
       .query("emails")
       .withIndex("gmailThreadId", (q) => q.eq("gmailThreadId", args.threadId))
       .filter((q) => q.eq(q.field("userId"), userId))
       .order("asc")
       .collect();
+
+    // Get attachments for each email
+    const emailsWithAttachments = await Promise.all(
+      emails.map(async (email) => {
+        const attachments = await ctx.db
+          .query("attachments")
+          .withIndex("emailId", (q) => q.eq("emailId", email._id))
+          .collect();
+        return {
+          ...email,
+          attachments,
+        };
+      })
+    );
+
+    return emailsWithAttachments;
   },
 });
 

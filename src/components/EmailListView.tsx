@@ -370,8 +370,15 @@ export function EmailListView({ title, filter, selectedEmailId, setSelectedEmail
                     {formatEmailTime(email.internalDate)}
                   </span>
                 </div>
-                <div className={`text-sm truncate ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
-                  {email.subject}
+                <div className="flex items-center gap-1">
+                  <span className={`text-sm truncate ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
+                    {email.subject}
+                  </span>
+                  {email.threadMessageCount && email.threadMessageCount > 1 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      ({email.threadMessageCount})
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {email.snippet}
@@ -393,6 +400,11 @@ export function EmailListView({ title, filter, selectedEmailId, setSelectedEmail
                     <span className={`text-sm truncate flex-shrink-0 max-w-[200px] lg:max-w-[300px] ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
                       {email.subject}
                     </span>
+                    {email.threadMessageCount && email.threadMessageCount > 1 && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                        ({email.threadMessageCount})
+                      </span>
+                    )}
                     <span className="text-sm text-gray-500 dark:text-gray-400 ml-2 truncate min-w-0">
                       <span className="mr-1">–</span>
                       {email.snippet}

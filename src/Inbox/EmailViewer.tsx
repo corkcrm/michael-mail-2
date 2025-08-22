@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThreadViewer } from "./ThreadViewer";
 import "./EmailViewer.css";
 
 interface EmailViewerProps {
@@ -22,6 +23,14 @@ export function EmailViewer({ emailId, onBack }: EmailViewerProps) {
       void markAsRead({ emailId, isRead: true });
     }
   }, [email, emailId, markAsRead]);
+
+  // Check if this email is part of a thread with multiple messages
+  const isThread = email?.threadInfo && email.threadInfo.messageCount > 1;
+  
+  // Use ThreadViewer for threaded conversations
+  if (isThread) {
+    return <ThreadViewer emailId={emailId} onBack={onBack} />;
+  }
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);

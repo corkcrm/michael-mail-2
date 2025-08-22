@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, and Convex. Features real Gmail integration via OAuth, auto-sync on page refresh, email viewing functionality, and a clean, focused interface.
+Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, and Convex. Features real Gmail integration via OAuth, thread view support, auto-sync on page refresh, and a clean Gmail-inspired interface.
 
 ## Essential Commands
 
@@ -48,9 +48,12 @@ Production URLs:
 
 #### Frontend Structure
 - `/src/App.tsx` - Main app with sidebar navigation and authenticated layout
-- `/src/Inbox/InboxPage.tsx` - Email inbox list with refresh button, auto-sync on mount
+- `/src/views/` - Different email views (InboxView, SentView, DraftsView, ArchiveView, TrashView)
+- `/src/components/EmailListView.tsx` - Reusable email list component used by all views
 - `/src/Inbox/EmailViewer.tsx` - Full email viewer with back navigation
+- `/src/Inbox/ThreadViewer.tsx` - Thread conversation view with collapsible emails
 - `/src/Inbox/EmailViewer.css` - Email content styling for proper HTML display
+- `/src/components/ComposeDialog.tsx` - Gmail-style compose dialog
 - `/src/auth/SignInFormsShowcase.tsx` - Google OAuth authentication
 - `/src/components/ui/sidebar.tsx` - Dark theme Gmail-style sidebar navigation
 
@@ -62,14 +65,14 @@ Production URLs:
    - Tokens include: `googleAccessToken`, `googleRefreshToken`, `tokenExpiresAt`
 
 2. **Email Sync Flow**:
-   - Page load → `InboxPage` mounts → calls `syncEmails` action
+   - Page load → View component mounts → calls `syncEmails` action (inbox only)
    - `syncEmails` fetches 50 latest emails from Gmail API in parallel
    - Emails upserted to database, maintaining Gmail IDs for deduplication
    - Real-time updates via Convex's reactive `useQuery` hooks
 
 3. **User Interactions**:
-   - Click email row → Opens EmailViewer component to display full email
-   - Back button → Returns to inbox list view
+   - Click email row → Opens EmailViewer or ThreadViewer component
+   - Back button → Returns to email list view
    - Mark as read/unread → Local database update only (one-way sync)
    - Refresh button → Triggers new `syncEmails` call
    - Email automatically marked as read when opened
@@ -91,11 +94,13 @@ Production URLs:
 
 #### `/convex/emails.ts`
 - `upsertEmail(...)` - Insert or update email in database
-- `getInboxEmails(page?, pageSize?)` - Page-based inbox query with pagination
+- `getEmails(filter, page?, pageSize?)` - Unified query for all email views
+  - Supports filters: inbox, sent, drafts, archive, trash, all
   - Returns emails with total count and navigation metadata
   - Default page size: 50 emails
   - Includes `hasNext` and `hasPrev` flags for navigation
 - `getEmailById(emailId)` - Get single email with attachments for viewing
+- `getEmailsByThread(threadId)` - Get all emails in a thread conversation
 - `markAsRead(emailId, isRead)` - Local read status update
 - `updateSyncState(...)` - Track sync progress and pagination
 
@@ -140,15 +145,14 @@ messages: { userId, body } // Chat functionality (unused)
 #### Adding New Email Actions
 When adding new email actions (e.g., archive, delete), follow this pattern:
 1. Add mutation in `/convex/emails.ts` for local state
-2. Add UI handler in `InboxPage.tsx` or `EmailViewer.tsx`
+2. Add UI handler in `EmailListView.tsx` or viewer components
 3. Consider if Gmail API sync needed (usually not for read-only app)
 
-#### Email Viewing Implementation
-The app uses component state for navigation rather than a routing library:
-- `selectedEmailId` state in `InboxPage.tsx` controls view mode
-- When null → shows inbox list
-- When set → renders `EmailViewer` component
-- Simple back button returns to list by clearing selection
+#### DRY Architecture for Views
+All email views (Inbox, Sent, Drafts, Archive, Trash) share the same `EmailListView` component:
+- Pass appropriate `filter` prop to control which emails are shown
+- Filter logic is handled in the backend `getEmails` query
+- Maintains consistency across all views
 
 #### Schema Migrations
 When modifying the database schema:
@@ -166,7 +170,7 @@ When modifying the database schema:
 
 - **Parallel fetching**: Always use `Promise.all` for multiple API calls
 - **Database indexes**: Schema includes indexes on `gmailId`, `userId`, `userDate`
-- **Pagination**: Use cursor-based pagination for large datasets
+- **Pagination**: Use page-based pagination with 50 emails per page
 - **Real-time updates**: Convex handles subscriptions automatically via `useQuery`
 
 ### Path Aliases
@@ -191,44 +195,32 @@ Required in `.env.local`:
 
 ### Recent Features & Changes
 
+- **Thread View Support** (2025-01): Gmail-style conversation threading
+  - ThreadViewer component displays entire email conversations
+  - Collapsible/expandable emails within threads
+  - `getEmailsByThread` query for fetching thread emails
+  - Automatic thread grouping based on Gmail thread IDs
+- **DRY Architecture** (2025-01): Refactored to use single EmailListView component
+  - All views (Inbox, Sent, Drafts, Archive, Trash) now share the same component
+  - Unified `getEmails` query with filter parameter
+  - Simplified codebase by eliminating duplicate components
 - **Gmail-Style Pagination** (2025-01): Full pagination implementation
   - Page-based navigation showing "1-50 of 248" format
   - Previous/Next arrow buttons with proper disabled states
   - Backend query returns total count and pagination metadata
   - Automatic page reset when syncing new emails
   - Clears selections when navigating between pages (matching Gmail behavior)
-  - Pagination controls positioned in top-right of inbox header
 - **Responsive Design Fixes** (2025-01): Eliminated horizontal scrolling issues
   - Proper overflow handling with `overflow-hidden` on all containers
   - Text truncation for long subjects and snippets
   - Mobile-first responsive layout with stacked view on small screens
-  - Fixed width constraints to keep content within viewport
-  - Proper flex container constraints with `min-w-0`
 - **Email Viewer** (2025-01): Click-to-read functionality with full email display
-  - EmailViewer component shows HTML/plain text content
-  - Custom CSS ensures text visibility in light/dark modes
-  - Attachments listed with file sizes
-  - Auto-marks emails as read when opened
 - **Checkbox Functionality** (2025-01): Fixed checkbox selection in inbox
-  - Individual email selection with checkboxes
-  - Select all functionality
-  - Event propagation properly handled to prevent opening emails when clicking checkboxes
 - **Token Refresh** (2025-01): Automatic Gmail token refresh
-  - Implements automatic access token refresh when expired
-  - Prevents "Gmail access expired" errors after being away
-  - Graceful fallback to re-authentication if refresh fails
-- **Navigation** (2025-01): Inbox button navigation
-  - Clicking "Inbox" in sidebar returns to inbox list view
-  - State lifted to App.tsx for global navigation control
 - **Compose Email** (2025-01): Full email composition and sending
   - Gmail-style compose dialog that slides from bottom
-  - Supports To, Cc, Bcc, Subject, and Body fields
-  - Minimize/maximize/close window controls
   - Real email sending via Gmail API
-  - Loading states and error handling
-  - Sent emails stored in database
   - Required OAuth scope: `gmail.send` (re-authentication needed after update)
 - **Performance Optimizations**: Parallel email fetching with Promise.all
-- **Removed Features**: Star/starred functionality removed for cleaner UI
-- **Auto-sync**: Emails sync automatically on page refresh
+- **Auto-sync**: Emails sync automatically on page refresh (inbox view only)
 - **GitHub Integration**: Auto-deployment to Vercel on push to main
