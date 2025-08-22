@@ -1,5 +1,6 @@
 import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
 import { InboxPage } from "@/Inbox/InboxPage";
+import { ComposeDialog } from "@/components/ComposeDialog";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -12,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "../convex/_generated/api";
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { useState } from "react";
+import { Id } from "../convex/_generated/dataModel";
 import {
   Sidebar,
   SidebarContent,
@@ -38,7 +41,9 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  Menu
+  Menu,
+  Plus,
+  Edit
 } from "lucide-react";
 
 // Gmail-style navigation items
@@ -50,7 +55,7 @@ const mailNavItems = [
   { title: "Trash", icon: Trash2 },
 ];
 
-function GmailSidebarContent({ user }: { user: any }) {
+function GmailSidebarContent({ user, onInboxClick, onComposeClick }: { user: any; onInboxClick: () => void; onComposeClick: () => void }) {
   const { signOut } = useAuthActions();
   const { state, toggleSidebar } = useSidebar();
   
@@ -90,6 +95,15 @@ function GmailSidebarContent({ user }: { user: any }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="bg-slate-900">
+        <div className="p-3">
+          <button
+            onClick={onComposeClick}
+            className="flex items-center gap-3 w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl transition-colors font-medium text-sm shadow-md hover:shadow-lg"
+          >
+            <Edit className="h-4 w-4" />
+            <span>Compose</span>
+          </button>
+        </div>
         <SidebarGroup>
           <SidebarGroupLabel className="text-slate-400 font-semibold">Mail</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -99,6 +113,7 @@ function GmailSidebarContent({ user }: { user: any }) {
                   <SidebarMenuButton 
                     tooltip={item.title}
                     className="hover:bg-slate-700 text-slate-300 hover:text-slate-100 w-full"
+                    onClick={item.title === "Inbox" ? onInboxClick : undefined}
                   >
                     <item.icon className="text-slate-400 shrink-0" />
                     <span className="truncate">{item.title}</span>
@@ -173,16 +188,26 @@ function GmailSidebarContent({ user }: { user: any }) {
   );
 }
 
-function GmailSidebar({ user }: { user: any }) {
+function GmailSidebar({ user, onInboxClick, onComposeClick }: { user: any; onInboxClick: () => void; onComposeClick: () => void }) {
   return (
     <Sidebar collapsible="icon" className="bg-slate-900 border-r border-slate-700">
-      <GmailSidebarContent user={user} />
+      <GmailSidebarContent user={user} onInboxClick={onInboxClick} onComposeClick={onComposeClick} />
     </Sidebar>
   );
 }
 
 export default function App() {
   const user = useQuery(api.users.viewer);
+  const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  
+  const handleInboxClick = () => {
+    setSelectedEmailId(null);
+  };
+  
+  const handleComposeClick = () => {
+    setIsComposeOpen(true);
+  };
   
   return (
     <>
@@ -193,7 +218,7 @@ export default function App() {
       <Authenticated>
         <SidebarProvider>
           <div className="flex h-screen w-full">
-            <GmailSidebar user={user} />
+            <GmailSidebar user={user} onInboxClick={handleInboxClick} onComposeClick={handleComposeClick} />
             <div className="flex flex-1 flex-col">
               <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
                 <SidebarTrigger className="md:hidden">
@@ -203,10 +228,18 @@ export default function App() {
                 <h1 className="text-lg font-semibold">Michael Mail</h1>
               </header>
               <main className="flex-1 overflow-hidden">
-                <InboxPage />
+                <InboxPage 
+                  selectedEmailId={selectedEmailId}
+                  setSelectedEmailId={setSelectedEmailId}
+                />
               </main>
             </div>
           </div>
+          <ComposeDialog 
+            isOpen={isComposeOpen} 
+            onClose={() => setIsComposeOpen(false)}
+            userEmail={user?.email}
+          />
         </SidebarProvider>
       </Authenticated>
     </>

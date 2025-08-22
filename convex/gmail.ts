@@ -1,4 +1,4 @@
-import { action, query } from "./_generated/server";
+import { action, query, mutation } from "./_generated/server";
 import { ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { api } from "./_generated/api";
@@ -64,6 +64,83 @@ export const getCurrentUserWithTokens = query({
   },
 });
 
+// Mutation to update user tokens after refresh
+export const updateUserTokens = mutation({
+  args: {
+    accessToken: v.string(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new ConvexError("Not authenticated");
+    }
+    
+    await ctx.db.patch(userId, {
+      googleAccessToken: args.accessToken,
+      tokenExpiresAt: args.expiresAt,
+    });
+  },
+});
+
+// Helper function to refresh Google access token
+async function refreshGoogleToken(refreshToken: string): Promise<{
+  access_token: string;
+  expires_in: number;
+}> {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      client_id: process.env.AUTH_GOOGLE_ID!,
+      client_secret: process.env.AUTH_GOOGLE_SECRET!,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new ConvexError("Failed to refresh Google token");
+  }
+
+  return await response.json();
+}
+
+// Helper function to get a valid access token (refresh if needed)
+async function getValidAccessToken(ctx: any, user: any): Promise<string> {
+  // Check if token is expired or about to expire (5 minutes buffer)
+  const now = Date.now() / 1000;
+  const tokenExpiresAt = user.tokenExpiresAt || 0;
+  
+  if (tokenExpiresAt > now + 300) {
+    // Token is still valid for more than 5 minutes
+    return user.googleAccessToken;
+  }
+
+  // Token is expired or about to expire, refresh it
+  if (!user.googleRefreshToken) {
+    throw new ConvexError("No refresh token available. Please sign in again.");
+  }
+
+  try {
+    const tokenData = await refreshGoogleToken(user.googleRefreshToken);
+    const newExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+    
+    // Update the tokens in the database
+    await ctx.runMutation(api.gmail.updateUserTokens, {
+      accessToken: tokenData.access_token,
+      expiresAt: newExpiresAt,
+    });
+    
+    return tokenData.access_token;
+  } catch (error) {
+    console.error("Failed to refresh token:", error);
+    throw new ConvexError("Failed to refresh Gmail access. Please sign in again.");
+  }
+}
+
 export const fetchEmails = action({
   args: {},
   handler: async (ctx): Promise<EmailData[]> => {
@@ -81,7 +158,8 @@ export const fetchEmails = action({
       return [];
     }
 
-    const accessToken = user.googleAccessToken;
+    // Get a valid access token (refresh if needed)
+    const accessToken = await getValidAccessToken(ctx, user);
 
     try {
       // Fetch the list of message IDs from Gmail
@@ -96,6 +174,36 @@ export const fetchEmails = action({
 
       if (!listResponse.ok) {
         if (listResponse.status === 401) {
+          // Token might have just expired, try one more time with a fresh token
+          if (user.googleRefreshToken) {
+            try {
+              const tokenData = await refreshGoogleToken(user.googleRefreshToken);
+              const newExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+              
+              await ctx.runMutation(api.gmail.updateUserTokens, {
+                accessToken: tokenData.access_token,
+                expiresAt: newExpiresAt,
+              });
+              
+              // Retry with new token
+              const retryResponse = await fetch(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20",
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokenData.access_token}`,
+                  },
+                }
+              );
+              
+              if (retryResponse.ok) {
+                const data = await retryResponse.json();
+                // Continue processing with the new response
+                return processEmailList(ctx, data, tokenData.access_token);
+              }
+            } catch (error) {
+              console.error("Token refresh failed:", error);
+            }
+          }
           throw new ConvexError("Gmail access expired. Please sign in again.");
         }
         throw new ConvexError(`Failed to fetch emails: ${listResponse.statusText}`);
@@ -249,6 +357,56 @@ function extractEmailBody(message: GmailMessage): { html?: string; plain?: strin
   return result;
 }
 
+// Helper function to process email list response
+async function processEmailList(_ctx: any, listData: any, accessToken: string): Promise<EmailData[]> {
+  const messages = listData.messages || [];
+  const emails: EmailData[] = [];
+  
+  for (const msg of messages) {
+    try {
+      const detailResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!detailResponse.ok) {
+        console.error(`Failed to fetch message ${msg.id}: ${detailResponse.statusText}`);
+        continue;
+      }
+
+      const messageData: GmailMessage = await detailResponse.json();
+      const headers = messageData.payload?.headers || [];
+      const getHeader = (name: string) =>
+        headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+
+      const fromHeader = getHeader("From");
+      const senderMatch = fromHeader.match(/^"?([^"<]*)"?\s*<?([^>]*)>?$/);
+      const senderName = senderMatch ? senderMatch[1].trim() : fromHeader;
+      const senderEmail = senderMatch && senderMatch[2] ? senderMatch[2] : fromHeader;
+
+      const date = new Date(parseInt(messageData.internalDate || "0"));
+
+      emails.push({
+        id: messageData.id,
+        sender: senderName || senderEmail,
+        senderEmail: senderEmail,
+        subject: getHeader("Subject") || "(no subject)",
+        preview: messageData.snippet || "",
+        time: date.toISOString(),
+        read: !messageData.labelIds?.includes("UNREAD"),
+      });
+    } catch (error) {
+      console.error(`Error processing message ${msg.id}:`, error);
+    }
+  }
+
+  return emails;
+}
+
 // Helper function to extract attachments
 function extractAttachments(message: GmailMessage): Array<{
   gmailAttachmentId: string;
@@ -318,7 +476,14 @@ export const syncEmails = action({
       return { synced: 0, error: "No Gmail access" };
     }
 
-    const accessToken = user.googleAccessToken;
+    // Get a valid access token (refresh if needed)
+    let accessToken: string;
+    try {
+      accessToken = await getValidAccessToken(ctx, user);
+    } catch (error) {
+      console.error("Failed to get valid access token:", error);
+      return { synced: 0, error: "Failed to refresh Gmail access. Please sign in again." };
+    }
     
     try {
       // Always fetch the latest emails first (don't use pageToken for regular syncs)
@@ -334,11 +499,37 @@ export const syncEmails = action({
       }
       
       // Fetch message list
-      const listResponse = await fetch(url, {
+      let listResponse = await fetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+
+      // Handle 401 error with token refresh retry
+      if (!listResponse.ok && listResponse.status === 401 && user.googleRefreshToken) {
+        try {
+          console.log("Access token expired, attempting to refresh...");
+          const tokenData = await refreshGoogleToken(user.googleRefreshToken);
+          const newExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+          
+          await ctx.runMutation(api.gmail.updateUserTokens, {
+            accessToken: tokenData.access_token,
+            expiresAt: newExpiresAt,
+          });
+          
+          accessToken = tokenData.access_token;
+          
+          // Retry with new token
+          listResponse = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+        } catch (refreshError) {
+          console.error("Token refresh failed:", refreshError);
+          throw new ConvexError("Gmail access expired. Please sign in again.");
+        }
+      }
 
       if (!listResponse.ok) {
         if (listResponse.status === 401) {
@@ -491,6 +682,225 @@ export const syncEmails = action({
         throw error;
       }
       throw new ConvexError("Failed to sync emails from Gmail");
+    }
+  },
+});
+
+// Helper function to create a MIME message
+function createMimeMessage(params: {
+  to: string;
+  cc?: string;
+  bcc?: string;
+  subject: string;
+  body: string;
+  from: string;
+}): string {
+  const boundary = "boundary_" + Math.random().toString(36).substring(2);
+  
+  const headers = [
+    `From: ${params.from}`,
+    `To: ${params.to}`,
+  ];
+  
+  if (params.cc) {
+    headers.push(`Cc: ${params.cc}`);
+  }
+  
+  if (params.bcc) {
+    headers.push(`Bcc: ${params.bcc}`);
+  }
+  
+  headers.push(
+    `Subject: ${params.subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    params.body,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    params.body.replace(/\n/g, "<br/>"),
+    "",
+    `--${boundary}--`
+  );
+  
+  return headers.join("\r\n");
+}
+
+// Action to send an email via Gmail
+export const sendEmail = action({
+  args: {
+    to: v.string(),
+    cc: v.optional(v.string()),
+    bcc: v.optional(v.string()),
+    subject: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+    try {
+      // Get the current user with their OAuth tokens
+      const user = await ctx.runQuery(api.gmail.getCurrentUserWithTokens);
+      
+      if (!user) {
+        throw new ConvexError("Not authenticated. Please sign in again.");
+      }
+      
+      if (!user.googleAccessToken) {
+        throw new ConvexError("No Gmail access. Please sign in with Google.");
+      }
+      
+      // Get a valid access token (refresh if needed)
+      let accessToken: string;
+      try {
+        accessToken = await getValidAccessToken(ctx, user);
+      } catch (error) {
+        console.error("Failed to get valid access token:", error);
+        return { success: false, error: "Failed to refresh Gmail access. Please sign in again." };
+      }
+      
+      // Create the MIME message
+      const mimeMessage = createMimeMessage({
+        from: user.email || "me",
+        to: args.to,
+        cc: args.cc,
+        bcc: args.bcc,
+        subject: args.subject,
+        body: args.body,
+      });
+      
+      // Convert to base64url encoding
+      // Use btoa for base64 encoding (available in Convex runtime)
+      const base64 = btoa(unescape(encodeURIComponent(mimeMessage)));
+      const encodedMessage = base64
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+      
+      // Send the email via Gmail API
+      let response = await fetch(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            raw: encodedMessage,
+          }),
+        }
+      );
+      
+      // Handle 401 error with token refresh retry
+      if (!response.ok && response.status === 401 && user.googleRefreshToken) {
+        try {
+          console.log("Access token expired during send, attempting to refresh...");
+          const tokenData = await refreshGoogleToken(user.googleRefreshToken);
+          const newExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+          
+          await ctx.runMutation(api.gmail.updateUserTokens, {
+            accessToken: tokenData.access_token,
+            expiresAt: newExpiresAt,
+          });
+          
+          accessToken = tokenData.access_token;
+          
+          // Retry with new token
+          response = await fetch(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                raw: encodedMessage,
+              }),
+            }
+          );
+        } catch (refreshError) {
+          console.error("Token refresh failed during send:", refreshError);
+          return { success: false, error: "Gmail access expired. Please sign in again." };
+        }
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to send email:", response.status, errorText);
+        return { 
+          success: false, 
+          error: `Failed to send email: ${response.statusText}` 
+        };
+      }
+      
+      const result = await response.json();
+      
+      // Store the sent email in our database
+      try {
+        // Fetch the sent message details to store it
+        const sentMessageResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${result.id}?format=full`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        
+        if (sentMessageResponse.ok) {
+          const sentMessage: GmailMessage = await sentMessageResponse.json();
+          
+          // Extract headers
+          const headers = sentMessage.payload?.headers || [];
+          const getHeader = (name: string) => 
+            headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+          
+          // Store in database
+          await ctx.runMutation(api.emails.upsertEmail, {
+            gmailId: sentMessage.id,
+            gmailThreadId: sentMessage.threadId,
+            subject: args.subject,
+            snippet: sentMessage.snippet || args.body.substring(0, 100),
+            internalDate: parseInt(sentMessage.internalDate || Date.now().toString()),
+            historyId: sentMessage.historyId || "",
+            sizeEstimate: sentMessage.sizeEstimate || 0,
+            from: user.name || user.email || "me",
+            fromEmail: user.email || "",
+            to: args.to.split(",").map(e => e.trim()),
+            cc: args.cc ? args.cc.split(",").map(e => e.trim()) : undefined,
+            bcc: args.bcc ? args.bcc.split(",").map(e => e.trim()) : undefined,
+            replyTo: user.email,
+            bodyHtml: args.body.replace(/\n/g, "<br/>"),
+            bodyPlain: args.body,
+            isRead: true,
+            isImportant: false,
+            isSpam: false,
+            isTrash: false,
+            isDraft: false,
+          });
+        }
+      } catch (error) {
+        // Log but don't fail if we can't store the sent message
+        console.error("Failed to store sent message:", error);
+      }
+      
+      return { 
+        success: true, 
+        messageId: result.id 
+      };
+    } catch (error) {
+      console.error("Error sending email:", error);
+      if (error instanceof ConvexError) {
+        return { success: false, error: error.data };
+      }
+      return { success: false, error: "Failed to send email" };
     }
   },
 });

@@ -30,14 +30,19 @@ import { useEffect, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
 import { EmailViewer } from "./EmailViewer";
 
-export function InboxPage() {
+interface InboxPageProps {
+  selectedEmailId: Id<"emails"> | null;
+  setSelectedEmailId: (id: Id<"emails"> | null) => void;
+}
+
+export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProps) {
   const syncEmails = useAction(api.gmail.syncEmails);
   const emailsQuery = useQuery(api.emails.getInboxEmails, { limit: 50 });
   const markAsRead = useMutation(api.emails.markAsRead);
   
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [selectedEmailId, setSelectedEmailId] = useState<Id<"emails"> | null>(null);
+  const [selectedEmails, setSelectedEmails] = useState<Set<Id<"emails">>>(new Set());
 
   // Sync emails on every mount (page refresh)
   useEffect(() => {
@@ -76,6 +81,26 @@ export function InboxPage() {
       await markAsRead({ emailId, isRead });
     } catch (err) {
       console.error("Error marking as read:", err);
+    }
+  };
+
+  const toggleEmailSelection = (emailId: Id<"emails">) => {
+    setSelectedEmails(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(emailId)) {
+        newSet.delete(emailId);
+      } else {
+        newSet.add(emailId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedEmails.size === emails.length && emails.length > 0) {
+      setSelectedEmails(new Set());
+    } else {
+      setSelectedEmails(new Set(emails.map(e => e._id)));
     }
   };
 
@@ -144,7 +169,11 @@ export function InboxPage() {
 
       {/* Email Actions Bar */}
       <div className="flex items-center gap-1 border-b dark:border-slate-800 px-4 py-1">
-        <Checkbox className="h-4 w-4" />
+        <Checkbox 
+          className="h-4 w-4"
+          checked={selectedEmails.size === emails.length && emails.length > 0}
+          onCheckedChange={toggleSelectAll}
+        />
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -223,7 +252,12 @@ export function InboxPage() {
             }`}
             onClick={() => setSelectedEmailId(email._id)}
           >
-            <Checkbox className="h-4 w-4" />
+            <Checkbox 
+              className="h-4 w-4"
+              checked={selectedEmails.has(email._id)}
+              onCheckedChange={() => toggleEmailSelection(email._id)}
+              onClick={(e) => e.stopPropagation()}
+            />
             
             <div className="flex items-center flex-1 min-w-0 gap-3">
               {/* Sender */}

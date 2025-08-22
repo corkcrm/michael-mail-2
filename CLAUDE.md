@@ -10,7 +10,8 @@ Michael Mail - A Gmail-style email client built with React, TypeScript, Vite, an
 
 ### Development
 - `npm run dev` - Runs both frontend (Vite on port 3000) and backend (Convex) in parallel
-- `npm run dev:frontend` - Frontend only (Vite dev server)
+  - Automatically runs `predev` first: ensures Convex is running and opens dashboard
+- `npm run dev:frontend` - Frontend only (Vite dev server on port 3000)
 - `npm run dev:backend` - Backend only (Convex dev)
 - `npx convex dev --once` - Deploy functions to Convex dev environment once (useful after schema changes)
 - `npx convex dashboard` - Open Convex dashboard in browser
@@ -39,7 +40,7 @@ Production URLs:
 - **Backend**: Convex (serverless functions and real-time database)
 - **Auth**: Convex Auth with Google OAuth (Gmail scope enabled)
 - **Email Integration**: Gmail API via OAuth tokens stored in user records
-- **Testing**: Vitest with edge-runtime environment
+- **Testing**: Vitest with edge-runtime environment (configured in vitest.config.mts)
 
 ### Key Components
 
@@ -80,6 +81,11 @@ Production URLs:
   - Processes emails, threads, and attachments
   - Returns `{ synced: number, hasMore?: boolean, error?: string }`
 - `getCurrentUserWithTokens()` - Query to get user with OAuth tokens
+- `sendEmail(to, cc?, bcc?, subject, body)` - Send emails via Gmail API
+  - Creates MIME-formatted messages
+  - Handles token refresh automatically
+  - Stores sent emails in database
+- `updateUserTokens(accessToken, expiresAt)` - Update OAuth tokens after refresh
 
 #### `/convex/emails.ts`
 - `upsertEmail(...)` - Insert or update email in database
@@ -114,6 +120,13 @@ attachments: {
 syncState: {
   userId, lastHistoryId, lastSyncTime, nextPageToken, syncStatus
 }
+labels: {
+  gmailLabelId, userId, name, type, // Label metadata
+  color, backgroundColor, // Display settings
+  totalMessages, unreadMessages // Stats
+}
+emailLabels: { emailId, labelId } // Many-to-many relation
+emailHeaders: { emailId, name, value } // Email headers storage
 messages: { userId, body } // Chat functionality (unused)
 ```
 
@@ -175,6 +188,25 @@ Required in `.env.local`:
   - Custom CSS ensures text visibility in light/dark modes
   - Attachments listed with file sizes
   - Auto-marks emails as read when opened
+- **Checkbox Functionality** (2025-01): Fixed checkbox selection in inbox
+  - Individual email selection with checkboxes
+  - Select all functionality
+  - Event propagation properly handled to prevent opening emails when clicking checkboxes
+- **Token Refresh** (2025-01): Automatic Gmail token refresh
+  - Implements automatic access token refresh when expired
+  - Prevents "Gmail access expired" errors after being away
+  - Graceful fallback to re-authentication if refresh fails
+- **Navigation** (2025-01): Inbox button navigation
+  - Clicking "Inbox" in sidebar returns to inbox list view
+  - State lifted to App.tsx for global navigation control
+- **Compose Email** (2025-01): Full email composition and sending
+  - Gmail-style compose dialog that slides from bottom
+  - Supports To, Cc, Bcc, Subject, and Body fields
+  - Minimize/maximize/close window controls
+  - Real email sending via Gmail API
+  - Loading states and error handling
+  - Sent emails stored in database
+  - Required OAuth scope: `gmail.send` (re-authentication needed after update)
 - **Performance Optimizations**: Parallel email fetching with Promise.all
 - **Removed Features**: Star/starred functionality removed for cleaner UI
 - **Auto-sync**: Emails sync automatically on page refresh
