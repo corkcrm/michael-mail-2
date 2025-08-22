@@ -7,7 +7,9 @@ import {
   Filter,
   Loader2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,7 +39,11 @@ interface InboxPageProps {
 
 export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProps) {
   const syncEmails = useAction(api.gmail.syncEmails);
-  const emailsQuery = useQuery(api.emails.getInboxEmails, { limit: 50 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const emailsQuery = useQuery(api.emails.getInboxEmails, { 
+    page: currentPage,
+    pageSize: 50 
+  });
   const markAsRead = useMutation(api.emails.markAsRead);
   
   const [syncing, setSyncing] = useState(false);
@@ -68,6 +74,10 @@ export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProp
       setSyncing(true);
       setSyncError(null);
       await syncEmails({ fullSync: false });
+      // Reset to first page after sync
+      setCurrentPage(1);
+      // Clear selections after sync
+      setSelectedEmails(new Set());
     } catch (err) {
       console.error("Error syncing emails:", err);
       setSyncError(err instanceof Error ? err.message : "Failed to sync emails");
@@ -134,7 +144,29 @@ export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProp
   };
 
   const emails = emailsQuery?.emails || [];
+  const totalCount = emailsQuery?.totalCount || 0;
+  const hasNext = emailsQuery?.hasNext || false;
+  const hasPrev = emailsQuery?.hasPrev || false;
   const loading = emailsQuery === undefined;
+
+  // Calculate display range
+  const startRange = totalCount === 0 ? 0 : ((currentPage - 1) * 50) + 1;
+  const endRange = Math.min(currentPage * 50, totalCount);
+
+  // Navigation handlers
+  const handlePrevPage = () => {
+    if (hasPrev) {
+      setCurrentPage(currentPage - 1);
+      setSelectedEmails(new Set()); // Clear selections when navigating
+    }
+  };
+
+  const handleNextPage = () => {
+    if (hasNext) {
+      setCurrentPage(currentPage + 1);
+      setSelectedEmails(new Set()); // Clear selections when navigating
+    }
+  };
 
   // If an email is selected, show the email viewer
   if (selectedEmailId) {
@@ -147,20 +179,20 @@ export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProp
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-950">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-950 overflow-hidden">
       {/* Inbox Header */}
-      <div className="border-b dark:border-slate-800 px-4 py-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-medium">Inbox</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+      <div className="border-b dark:border-slate-800 px-2 sm:px-4 py-2 w-full overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-lg font-medium flex-shrink-0">Inbox</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 hidden sm:flex">
               <Filter className="h-4 w-4" />
             </Button>
-            <div className="relative">
+            <div className="relative min-w-0 max-w-xs">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search mail"
-                className="pl-9 w-64 h-8"
+                className="pl-9 w-full h-8"
               />
             </div>
           </div>
@@ -168,45 +200,76 @@ export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProp
       </div>
 
       {/* Email Actions Bar */}
-      <div className="flex items-center gap-1 border-b dark:border-slate-800 px-4 py-1">
-        <Checkbox 
-          className="h-4 w-4"
-          checked={selectedEmails.size === emails.length && emails.length > 0}
-          onCheckedChange={toggleSelectAll}
-        />
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 px-3"
-                onClick={() => void handleSync()}
-                disabled={syncing}
+      <div className="flex items-center justify-between gap-1 border-b dark:border-slate-800 px-2 sm:px-4 py-1 w-full overflow-hidden">
+        {/* Left side actions */}
+        <div className="flex items-center gap-1">
+          <Checkbox 
+            className="h-4 w-4 flex-shrink-0"
+            checked={selectedEmails.size === emails.length && emails.length > 0}
+            onCheckedChange={toggleSelectAll}
+          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2 sm:px-3"
+                  onClick={() => void handleSync()}
+                  disabled={syncing}
+                >
+                  <RefreshCw className={`h-4 w-4 sm:mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Sync with Gmail to get new emails</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <div className="hidden sm:flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-8 px-2 sm:px-3">
+              <Archive className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden lg:inline">Archive</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 px-2 sm:px-3">
+              <Trash2 className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden lg:inline">Delete</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 px-2 sm:px-3 hidden md:flex">
+              <Reply className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden lg:inline">Reply</span>
+            </Button>
+          </div>
+        </div>
+        
+        {/* Pagination Controls - Right side */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {totalCount > 0 && (
+            <>
+              <span className="text-xs text-muted-foreground mr-1 sm:mr-2">
+                {startRange}-{endRange} of {totalCount}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handlePrevPage}
+                disabled={!hasPrev}
               >
-                <RefreshCw className={`h-4 w-4 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
-                Refresh
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Sync with Gmail to get new emails</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <Button variant="ghost" size="sm" className="h-8 px-3">
-          <Archive className="h-4 w-4 mr-1.5" />
-          Archive
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 px-3">
-          <Trash2 className="h-4 w-4 mr-1.5" />
-          Delete
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 px-3">
-          <Reply className="h-4 w-4 mr-1.5" />
-          Reply
-        </Button>
-        <div className="ml-auto text-xs text-muted-foreground">
-          {emails.length > 0 ? `1-${emails.length} of ${emails.length}` : ""}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleNextPage}
+                disabled={!hasNext}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -245,66 +308,89 @@ export function InboxPage({ selectedEmailId, setSelectedEmailId }: InboxPageProp
           emails.map((email) => (
           <div
             key={email._id}
-            className={`group flex items-center gap-3 px-4 py-2 border-b dark:border-slate-800 cursor-pointer transition-all ${
+            className={`group flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b dark:border-slate-800 cursor-pointer transition-all ${
               !email.isRead 
-                ? "bg-blue-50 dark:bg-slate-800/50 hover:bg-blue-100 dark:hover:bg-slate-700 font-medium" 
+                ? "bg-blue-50 dark:bg-slate-800/50 hover:bg-blue-100 dark:hover:bg-slate-700" 
                 : "bg-white dark:bg-slate-950 hover:bg-gray-50 dark:hover:bg-slate-800/30"
             }`}
             onClick={() => setSelectedEmailId(email._id)}
           >
             <Checkbox 
-              className="h-4 w-4"
+              className="h-4 w-4 flex-shrink-0"
               checked={selectedEmails.has(email._id)}
               onCheckedChange={() => toggleEmailSelection(email._id)}
               onClick={(e) => e.stopPropagation()}
             />
             
-            <div className="flex items-center flex-1 min-w-0 gap-3">
-              {/* Sender */}
-              <div className="w-44 flex-shrink-0">
-                <span className={`text-sm truncate block ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
-                  {email.from}
-                </span>
-              </div>
-              
-              {/* Subject and Preview */}
-              <div className="flex-1 min-w-0 flex items-center">
-                <span className={`text-sm truncate ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
+            <div className="flex-1 min-w-0 flex items-start sm:items-center overflow-hidden">
+              {/* Mobile Layout - Stacked */}
+              <div className="sm:hidden flex-1 min-w-0">
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className={`text-sm truncate ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
+                    {email.from}
+                  </span>
+                  <span className={`text-xs ml-2 flex-shrink-0 ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}>
+                    {formatEmailTime(email.internalDate)}
+                  </span>
+                </div>
+                <div className={`text-sm truncate ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
                   {email.subject}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 truncate ml-2">
-                  <span className="mx-1">–</span>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {email.snippet}
-                </span>
+                </div>
               </div>
-              
-              {/* Time */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className={`text-sm ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}>
-                  {formatEmailTime(email.internalDate)}
-                </span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="dark:bg-slate-800 dark:border-slate-700">
-                    <DropdownMenuItem 
-                      className="dark:text-slate-200 dark:hover:bg-slate-700"
-                      onClick={() => void handleMarkAsRead(email._id, !email.isRead)}
-                    >
-                      {email.isRead ? 'Mark as unread' : 'Mark as read'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Archive</DropdownMenuItem>
-                    <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+
+              {/* Desktop Layout - Horizontal */}
+              <div className="hidden sm:flex items-center flex-1 min-w-0 gap-3 overflow-hidden">
+                {/* Sender */}
+                <div className="w-32 md:w-44 flex-shrink-0 overflow-hidden">
+                  <span className={`text-sm truncate block ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
+                    {email.from}
+                  </span>
+                </div>
+                
+                {/* Subject and Preview */}
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className="flex items-center min-w-0 overflow-hidden">
+                    <span className={`text-sm truncate flex-shrink-0 max-w-[200px] lg:max-w-[300px] ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"}`}>
+                      {email.subject}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-2 truncate min-w-0">
+                      <span className="mr-1">–</span>
+                      {email.snippet}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Time and Actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className={`text-sm ${!email.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}>
+                    {formatEmailTime(email.internalDate)}
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="dark:bg-slate-800 dark:border-slate-700">
+                      <DropdownMenuItem 
+                        className="dark:text-slate-200 dark:hover:bg-slate-700"
+                        onClick={() => void handleMarkAsRead(email._id, !email.isRead)}
+                      >
+                        {email.isRead ? 'Mark as unread' : 'Mark as read'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Archive</DropdownMenuItem>
+                      <DropdownMenuItem className="dark:text-slate-200 dark:hover:bg-slate-700">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </div>

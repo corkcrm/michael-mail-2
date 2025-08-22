@@ -159,48 +159,71 @@ export const updateSyncState = mutation({
   },
 });
 
-// Query to get inbox emails
+// Query to get inbox emails with pagination
 export const getInboxEmails = query({
   args: {
-    limit: v.optional(v.number()),
-    cursor: v.optional(v.string()),
+    page: v.optional(v.number()),
+    pageSize: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      return { emails: [], nextCursor: null };
+      return { 
+        emails: [], 
+        totalCount: 0,
+        page: 1,
+        pageSize: 50,
+        hasNext: false,
+        hasPrev: false
+      };
     }
 
-    const limit = args.limit || 20;
+    const page = args.page || 1;
+    const pageSize = args.pageSize || 50;
+    const offset = (page - 1) * pageSize;
 
-    // Get emails that are not spam or trash
-    let query = ctx.db
+    // First, get total count of inbox emails (not spam or trash)
+    const allEmails = await ctx.db
       .query("emails")
       .withIndex("userDate", (q) => q.eq("userId", userId))
-      .order("desc");
-
-    // Apply cursor if provided
-    if (args.cursor) {
-      const cursorDate = parseInt(args.cursor);
-      query = query.filter((q) => q.lt(q.field("internalDate"), cursorDate));
-    }
-
-    const emails = await query
       .filter((q) => 
         q.and(
           q.eq(q.field("isSpam"), false),
           q.eq(q.field("isTrash"), false)
         )
       )
-      .take(limit + 1);
+      .collect();
+    
+    const totalCount = allEmails.length;
 
-    const hasMore = emails.length > limit;
-    const emailList = hasMore ? emails.slice(0, limit) : emails;
-    const nextCursor = hasMore ? String(emailList[emailList.length - 1].internalDate) : null;
+    // Get paginated emails
+    const emails = await ctx.db
+      .query("emails")
+      .withIndex("userDate", (q) => q.eq("userId", userId))
+      .order("desc")
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("isSpam"), false),
+          q.eq(q.field("isTrash"), false)
+        )
+      )
+      .collect();
+
+    // Apply pagination in memory (Convex doesn't have skip/offset)
+    const paginatedEmails = emails.slice(offset, offset + pageSize);
+    
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
 
     return {
-      emails: emailList,
-      nextCursor,
+      emails: paginatedEmails,
+      totalCount,
+      page,
+      pageSize,
+      totalPages,
+      hasNext,
+      hasPrev,
     };
   },
 });

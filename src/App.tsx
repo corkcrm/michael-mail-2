@@ -216,9 +216,9 @@ export default function App() {
 
       <Authenticated>
         <SidebarProvider>
-          <div className="flex h-screen w-full">
+          <div className="flex h-screen w-full overflow-hidden">
             <GmailSidebar user={user} onInboxClick={handleInboxClick} onComposeClick={handleComposeClick} />
-            <div className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
               <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
                 <SidebarTrigger className="md:hidden">
                   <Menu className="h-5 w-5" />

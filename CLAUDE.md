@@ -89,7 +89,10 @@ Production URLs:
 
 #### `/convex/emails.ts`
 - `upsertEmail(...)` - Insert or update email in database
-- `getInboxEmails(limit?, cursor?)` - Paginated inbox query
+- `getInboxEmails(page?, pageSize?)` - Page-based inbox query with pagination
+  - Returns emails with total count and navigation metadata
+  - Default page size: 50 emails
+  - Includes `hasNext` and `hasPrev` flags for navigation
 - `getEmailById(emailId)` - Get single email with attachments for viewing
 - `markAsRead(emailId, isRead)` - Local read status update
 - `updateSyncState(...)` - Track sync progress and pagination
@@ -183,6 +186,19 @@ Required in `.env.local`:
 
 ### Recent Features & Changes
 
+- **Gmail-Style Pagination** (2025-01): Full pagination implementation
+  - Page-based navigation showing "1-50 of 248" format
+  - Previous/Next arrow buttons with proper disabled states
+  - Backend query returns total count and pagination metadata
+  - Automatic page reset when syncing new emails
+  - Clears selections when navigating between pages (matching Gmail behavior)
+  - Pagination controls positioned in top-right of inbox header
+- **Responsive Design Fixes** (2025-01): Eliminated horizontal scrolling issues
+  - Proper overflow handling with `overflow-hidden` on all containers
+  - Text truncation for long subjects and snippets
+  - Mobile-first responsive layout with stacked view on small screens
+  - Fixed width constraints to keep content within viewport
+  - Proper flex container constraints with `min-w-0`
 - **Email Viewer** (2025-01): Click-to-read functionality with full email display
   - EmailViewer component shows HTML/plain text content
   - Custom CSS ensures text visibility in light/dark modes

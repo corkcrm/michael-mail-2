@@ -290,7 +290,7 @@ export function ComposeDialog({ isOpen, onClose, userEmail }: ComposeDialogProps
             <div className="flex items-center justify-between px-4 py-3 border-t dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <Button
-                  onClick={handleSend}
+                  onClick={() => void handleSend()}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                   size="sm"
                   disabled={isSending}
