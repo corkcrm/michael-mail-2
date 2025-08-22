@@ -857,11 +857,6 @@ export const sendEmail = action({
         if (sentMessageResponse.ok) {
           const sentMessage: GmailMessage = await sentMessageResponse.json();
           
-          // Extract headers
-          const headers = sentMessage.payload?.headers || [];
-          const getHeader = (name: string) => 
-            headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
-          
           // Store in database
           await ctx.runMutation(api.emails.upsertEmail, {
             gmailId: sentMessage.id,

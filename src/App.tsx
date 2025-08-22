@@ -42,7 +42,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  Plus,
   Edit
 } from "lucide-react";
 
